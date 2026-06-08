@@ -45,6 +45,7 @@ Run the provided deployment script. This script automatically handles installing
 - Long press on screen to bring up the menu.
 - Swipe left/right or tap on left/right edges to navigate between photos.
 - Settings screen to control slideshow settings, weather, etc.
+- Swipe down from top to get the top bar when screensaver is active
 
 ---
 
