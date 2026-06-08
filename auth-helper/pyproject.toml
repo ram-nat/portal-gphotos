@@ -1,0 +1,23 @@
+[project]
+name = "portal-gphotos-auth"
+version = "0.1.0"
+description = "One-time loopback OAuth helper to mint a Google Photos Picker refresh token for the Portal Photos app"
+requires-python = ">=3.10"
+dependencies = ["requests>=2.31"]
+
+[project.scripts]
+portal-auth = "portal_auth.cli:main"
+portal-ambient-probe = "portal_auth.ambient_probe:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/portal_auth"]
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

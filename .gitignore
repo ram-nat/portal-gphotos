@@ -1,0 +1,38 @@
+# Secrets — never commit OAuth credentials or tokens
+client_secret*.json
+*token*.json
+token.cfg
+secrets/
+
+# AI maintainer notes — kept local, not published
+/CLAUDE.md
+README.md
+docs/
+
+# Android / Gradle
+.gradle/
+build/
+local.properties
+*.apk
+*.aab
+*.keystore
+*.jks
+keystore.properties
+captures/
+.cxx/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+dist/
+*.egg-info/
+
+# Editors / OS / tooling
+.idea/
+.claude/
+.DS_Store
+*.swp
+screenshots/

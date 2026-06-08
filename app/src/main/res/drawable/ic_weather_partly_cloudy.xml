@@ -1,0 +1,13 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <!-- small sun, upper-left -->
+    <path android:fillColor="#FFFFFFFF"
+        android:pathData="M8,4.5a2.5,2.5 0 1,0 0,5a2.5,2.5 0 1,0 0,-5z" />
+    <path android:strokeColor="#FFFFFFFF" android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:pathData="M8,0.6 V2 M8,12 V13.4 M0.6,7 H2 M14,7 H15.4 M2.7,1.7 L3.7,2.7 M12.3,1.7 L11.3,2.7" />
+    <!-- cloud, lower-right, drawn over the sun -->
+    <path android:fillColor="#FFFFFFFF"
+        android:pathData="M18,21H9.5A4.5,4.5 0 0,1 9,12.06A5.5,5.5 0 0,1 19.8,13.2A3.9,3.9 0 0,1 18,21Z" />
+</vector>
