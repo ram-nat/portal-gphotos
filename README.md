@@ -5,7 +5,7 @@ A native Android app that allows you to pick photos and videos from your Google 
 ---
 
 ## 1. Prerequisites
-- A Meta Portal with Developer Mode (ADB) enabled.
+- A Facebook Portal with Developer Mode (ADB) enabled.
 - A computer with `adb` installed.
 - [Download the latest release APK](https://github.com/ram-nat/portal-gphotos/releases/latest) and place it in the project directory, or clone this repo to build from source.
 
@@ -29,7 +29,7 @@ Because this app connects to your personal Google Photos library, you need to cr
 
 ## 3. Deployment
 
-Connect your Meta Portal to your computer via USB (or over Wi-Fi ADB). Make sure to authorize the connection on the Portal screen.
+Connect your Facebook Portal to your computer via USB (or over Wi-Fi ADB). Make sure to authorize the connection on the Portal screen.
 
 Run the provided deployment script. This script automatically handles installing the APK, pushing your credentials, granting necessary system permissions, and setting up the screensaver hooks:
 
