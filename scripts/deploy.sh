@@ -19,7 +19,17 @@ DREAM="$PKG/$PKG.PhotoDreamService"
 FILES_DIR="/sdcard/Android/data/$PKG/files"
 
 SERIAL="${SERIAL:-}"
-APK="${APK:-app/build/outputs/apk/debug/app-debug.apk}"
+if [[ -n "${APK:-}" ]]; then
+  # Keep whatever the user explicitly passed
+  :
+elif [[ -f "app-release.apk" ]]; then
+  APK="app-release.apk"
+elif [[ -f "app/build/outputs/apk/release/app-release.apk" ]]; then
+  APK="app/build/outputs/apk/release/app-release.apk"
+else
+  APK="app/build/outputs/apk/debug/app-debug.apk"
+fi
+
 CLIENT="${CLIENT:-client_secret.json}"
 TOKEN="${TOKEN:-token.json}"
 DO_BUILD=0
@@ -60,8 +70,15 @@ adb() { "$ADB" -s "$SERIAL" "$@"; }
 echo ">> device: $SERIAL"
 
 # --- optional build ---
-if [[ $DO_BUILD -eq 1 ]]; then echo ">> ./gradlew assembleDebug"; ./gradlew assembleDebug; fi
-[[ -f "$APK" ]] || { echo "APK not found: $APK (run with --build, or ./gradlew assembleDebug)" >&2; exit 1; }
+if [[ $DO_BUILD -eq 1 ]]; then
+  echo ">> ./gradlew assembleRelease"
+  ./gradlew assembleRelease
+  # Re-evaluate APK if we just built the release one and the user didn't specify one
+  if [[ -z "${APK:-}" || "$APK" == "app/build/outputs/apk/debug/app-debug.apk" ]]; then
+    APK="app/build/outputs/apk/release/app-release.apk"
+  fi
+fi
+[[ -f "$APK" ]] || { echo "APK not found: $APK (download it, or run with --build)" >&2; exit 1; }
 
 # --- install ---
 echo ">> install $APK"
