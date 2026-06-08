@@ -1,13 +1,6 @@
 # Portal GPhotos
 
-A native Android app specifically designed to run on the discontinued Meta Portal (which runs a GMS-less Android 9/10 fork). It connects directly to your Google Photos library and operates as an immersive, highly customizable digital photo frame.
-
-## Features
-- Direct integration with Google Photos API
-- Seamless video playback
-- Weather overlay based on location
-- Smart caching to minimize bandwidth and handle offline scenarios
-- No dependence on Google Play Services (GMS)
+A native Android app that allows you to pick photos and videos from your Google Photos library and display them as a slideshow on your Facebook Portal.
 
 ---
 
@@ -22,25 +15,15 @@ A native Android app specifically designed to run on the discontinued Meta Porta
 
 Because this app connects to your personal Google Photos library, you need to create your own Google Cloud project and generate OAuth credentials.
 
-### Step A: Create the Project & Enable API
-1. Go to the [Google Cloud Console](https://console.cloud.google.com/).
-2. Create a new project (e.g., "Portal Frame").
-3. Navigate to **APIs & Services > Library**.
-4. Search for the **Photos Library API** and click **Enable**.
-
-### Step B: Configure OAuth Consent Screen
-1. Go to **APIs & Services > OAuth consent screen**.
-2. Select **External** user type and click **Create**.
-3. Fill out the required App information (App name, support email, developer contact).
-4. Add your own Google account email under **Test Users** (important, otherwise you can't log in).
-5. Save and continue. You do not need to publish the app.
-
-### Step C: Create Credentials
-1. Go to **APIs & Services > Credentials**.
-2. Click **Create Credentials** -> **OAuth client ID**.
-3. For Application type, select **Desktop app**. Name it anything (e.g., "Portal Client").
-4. Click **Create**.
-5. A dialog will appear with your Client ID and Secret. Click **Download JSON** and save this file to the root directory of this project as exactly: `client_secret.json`
+1. **Create a project** at <https://console.cloud.google.com>.
+2. **Enable the Photos Picker API**: APIs & Services → Library → search "Photos Picker
+   API" → Enable. (Not the Library API, not the Ambient API.)
+3. **OAuth consent screen**:
+   - User type: **External**.
+   - Add the scope `https://www.googleapis.com/auth/photospicker.mediaitems.readonly`.
+   - Add your own Google account as a **Test user**.
+4. **Create the OAuth client**: Credentials → Create credentials → OAuth client ID →
+   Application type **Desktop app** → download the JSON (`client_secret.json`).
 
 ---
 
@@ -58,13 +41,15 @@ Run the provided deployment script. This script automatically handles installing
 
 ---
 
-## 4. First Run
+## 4. Usage
+- Long press on screen to bring up the menu.
+- Swipe left/right or tap on left/right edges to navigate between photos.
+- Settings screen to control slideshow settings, weather, etc.
 
-When the app launches on your Portal for the first time, it will show a "Setup Needed" screen.
-1. Tap the **Sign in on this device** button.
-2. It will display a QR code and a link.
-3. Scan the QR code with your phone (or go to the link on your computer).
-4. Log in with the exact Google account you added as a "Test User" in Step B.
-5. Grant the permissions.
+---
 
-Once authenticated, the Portal will automatically refresh, download your library structure, and begin the slideshow!
+## Screenshots
+
+![Slideshow](docs/showing_screen.png)
+![Picker](docs/add_photos_screen.png)
+![Setup](docs/setup_screen.png)
