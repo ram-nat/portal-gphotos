@@ -93,7 +93,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private var pickerJob: Job? = null
 
-    init { start(); weatherLoop() }
+    private val _powerPolicy = MutableStateFlow(PowerPolicy.AWAKE_FOREVER)
+    val powerPolicy: StateFlow<PowerPolicy> = _powerPolicy.asStateFlow()
+
+    init { start(); weatherLoop(); sleepLoop() }
 
     fun setShuffle(v: Boolean) { settings.setShuffle(v); _settings.value = _settings.value.copy(shuffle = v) }
     fun setIntervalMs(v: Long) { settings.setIntervalMs(v); _settings.value = _settings.value.copy(intervalMs = v) }
@@ -104,13 +107,62 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun setSleepWhenAlone(v: Boolean) {
         settings.setSleepWhenAlone(v)
         _settings.value = _settings.value.copy(sleepWhenAlone = v)
-        ScreensaverGuard.applyPowerPolicy(getApplication(), v)
+        evaluateSleepState()
     }
 
     fun setShowWeather(v: Boolean) {
         settings.setShowWeather(v)
         _settings.value = _settings.value.copy(showWeather = v)
         if (v) refreshWeather() else { _geoResults.value = emptyList(); _geoStatus.value = null }
+    }
+
+    fun setInactivityTimeoutMinutes(v: Int) { settings.setInactivityTimeoutMinutes(v); _settings.value = _settings.value.copy(inactivityTimeoutMinutes = v); evaluateSleepState() }
+    fun setSleepScheduleEnabled(v: Boolean) { settings.setSleepScheduleEnabled(v); _settings.value = _settings.value.copy(sleepScheduleEnabled = v); evaluateSleepState() }
+    fun setSleepStart(h: Int, m: Int) { settings.setSleepStart(h, m); _settings.value = _settings.value.copy(sleepStartHour = h, sleepStartMinute = m); evaluateSleepState() }
+    fun setSleepEnd(h: Int, m: Int) { settings.setSleepEnd(h, m); _settings.value = _settings.value.copy(sleepEndHour = h, sleepEndMinute = m); evaluateSleepState() }
+
+    private fun evaluateSleepState() {
+        val s = _settings.value
+
+        val now = java.util.Calendar.getInstance()
+        val hour = now.get(java.util.Calendar.HOUR_OF_DAY)
+        val min = now.get(java.util.Calendar.MINUTE)
+        val currentMinutes = hour * 60 + min
+
+        if (s.sleepScheduleEnabled) {
+            val startMins = s.sleepStartHour * 60 + s.sleepStartMinute
+            val endMins = s.sleepEndHour * 60 + s.sleepEndMinute
+            val isNight = if (startMins <= endMins) {
+                currentMinutes in startMins until endMins
+            } else {
+                currentMinutes >= startMins || currentMinutes < endMins
+            }
+            if (isNight) {
+                _powerPolicy.value = PowerPolicy.SCHEDULED_SLEEP
+                return
+            }
+        }
+
+        if (s.sleepWhenAlone) {
+            _powerPolicy.value = PowerPolicy.SLEEP_WHEN_ALONE
+            return
+        }
+
+        if (s.inactivityTimeoutMinutes > 0) {
+            _powerPolicy.value = PowerPolicy.TIMEOUT_INACTIVE
+            return
+        }
+
+        _powerPolicy.value = PowerPolicy.AWAKE_FOREVER
+    }
+
+    private fun sleepLoop() {
+        viewModelScope.launch {
+            while (true) {
+                evaluateSleepState()
+                delay(10_000L)
+            }
+        }
     }
 
     /** Geocode a typed place name into candidate matches. One match auto-selects; several

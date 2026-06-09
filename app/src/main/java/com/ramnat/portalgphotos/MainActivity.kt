@@ -21,20 +21,29 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         // Apply the screen power policy for the current mode (always-on vs sleep-when-alone)
         // and seed the periodic guard that keeps our screensaver component asserted.
-        ScreensaverGuard.applyPowerPolicy(this, com.ramnat.portalgphotos.data.AppSettings(this).load().sleepWhenAlone)
+        val sleepAlone = com.ramnat.portalgphotos.data.AppSettings(this).load().sleepWhenAlone
+        val policy = if (sleepAlone) PowerPolicy.SLEEP_WHEN_ALONE else PowerPolicy.AWAKE_FOREVER
+        ScreensaverGuard.applyPowerPolicy(this, policy)
         ScreensaverGuard.ensureScheduled(this)
         enterImmersive()
         setContent {
             val vm: MainViewModel = viewModel()
             val state by vm.state.collectAsStateWithLifecycle()
             val settings by vm.settingsState.collectAsStateWithLifecycle()
-            // Hold the screen awake for a permanent frame — unless "sleep when alone" is on,
-            // in which case we release it so Portal's presence policy governs sleep-vs-show.
-            LaunchedEffect(settings.sleepWhenAlone) {
-                if (settings.sleepWhenAlone)
-                    window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-                else
+            val powerPolicy by vm.powerPolicy.collectAsStateWithLifecycle()
+            LaunchedEffect(powerPolicy) {
+                // Determine if we should hold the screen awake. We only hold it if we want AWAKE_FOREVER.
+                // Otherwise, we clear the flag and let the OS handle the screen timeout based on the policy.
+                if (powerPolicy == PowerPolicy.AWAKE_FOREVER) {
                     window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                } else {
+                    window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                }
+                ScreensaverGuard.applyPowerPolicy(
+                    this@MainActivity,
+                    powerPolicy,
+                    settings.inactivityTimeoutMinutes * 60 * 1000
+                )
             }
             val weather by vm.weatherState.collectAsStateWithLifecycle()
             val geoStatus by vm.geoStatus.collectAsStateWithLifecycle()
@@ -66,6 +75,10 @@ class MainActivity : ComponentActivity() {
                 onSetShowPhotoDate = vm::setShowPhotoDate,
                 onSetShowWeather = vm::setShowWeather,
                 onSetSleepWhenAlone = vm::setSleepWhenAlone,
+                onSetInactivityTimeout = vm::setInactivityTimeoutMinutes,
+                onSetSleepScheduleEnabled = vm::setSleepScheduleEnabled,
+                onSetSleepStart = vm::setSleepStart,
+                onSetSleepEnd = vm::setSleepEnd,
                 onSearchLocation = vm::searchLocation,
                 onChooseLocation = vm::chooseLocation,
                 onDetectLocation = {
