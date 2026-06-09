@@ -76,26 +76,22 @@ object ScreensaverGuard {
             when (policy) {
                 PowerPolicy.SLEEP_WHEN_ALONE -> {
                     Settings.Secure.putInt(cr, KEY_ENABLED, 0)
-                    Settings.Secure.putInt(cr, "wake_gesture_enabled", 1)
                     Settings.System.putInt(cr, Settings.System.SCREEN_OFF_TIMEOUT, SLEEP_ALONE_TIMEOUT_MS)
                     Log.i(TAG, "sleep-when-alone: screensaver off, timeout ${SLEEP_ALONE_TIMEOUT_MS}ms")
                 }
                 PowerPolicy.TIMEOUT_INACTIVE -> {
                     Settings.Secure.putInt(cr, KEY_ENABLED, 0)
-                    Settings.Secure.putInt(cr, "wake_gesture_enabled", 1)
                     val timeout = if (inactivityTimeoutMs > 0) inactivityTimeoutMs else 15_000
                     Settings.System.putInt(cr, Settings.System.SCREEN_OFF_TIMEOUT, timeout)
                     Log.i(TAG, "timeout-inactive: screensaver off, timeout ${timeout}ms")
                 }
                 PowerPolicy.SCHEDULED_SLEEP -> {
                     Settings.Secure.putInt(cr, KEY_ENABLED, 0)
-                    Settings.Secure.putInt(cr, "wake_gesture_enabled", 0) // Disable motion wake at night
                     Settings.System.putInt(cr, Settings.System.SCREEN_OFF_TIMEOUT, 30_000) // 30 seconds
-                    Log.i(TAG, "scheduled-sleep: screensaver off, wake_gesture off, timeout 30000ms")
+                    Log.i(TAG, "scheduled-sleep: screensaver off, timeout 30000ms")
                 }
                 PowerPolicy.AWAKE_FOREVER -> {
                     Settings.Secure.putInt(cr, KEY_ENABLED, 1)
-                    Settings.Secure.putInt(cr, "wake_gesture_enabled", 1)
                     val saved = prefs.getInt(KEY_SAVED_TIMEOUT, 15_000)
                     Settings.System.putInt(cr, Settings.System.SCREEN_OFF_TIMEOUT, saved)
                     applyNow(context) // re-assert our screensaver component
