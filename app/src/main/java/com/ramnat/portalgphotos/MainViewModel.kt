@@ -198,7 +198,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Decide where to land: setup needed, resume a pending pick, show cached, or pick. */
     fun start() {
-        viewModelScope.launch {
+        pickerJob?.cancel()
+        pickerJob = viewModelScope.launch {
             _state.value = UiState.Loading
             if (tokens.config() == null) {
                 val pkg = getApplication<Application>().packageName
