@@ -51,6 +51,6 @@ Run the provided deployment script. This script automatically handles installing
 
 ## Screenshots
 
-![Slideshow](docs/showing_screen.png)
-![Picker](docs/add_photos_screen.png)
 ![Setup](docs/setup_screen.png)
+![Picker](docs/add_photos_screen.png)
+![Slideshow](docs/showing_screen.png)
