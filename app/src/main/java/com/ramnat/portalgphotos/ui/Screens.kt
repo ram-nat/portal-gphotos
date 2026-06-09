@@ -39,6 +39,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.VolumeOff
+import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -956,9 +962,11 @@ private fun KenBurnsImage(file: File) {
     )
 }
 
+@Suppress("DEPRECATION")
 @OptIn(UnstableApi::class)
 @Composable
 private fun VideoPlayer(file: File, playing: Boolean, muted: Boolean, onEnded: () -> Unit) {
+    var isMuted by remember(muted) { mutableStateOf(muted) }
     val context = LocalContext.current
     val player = remember(file) {
         ExoPlayer.Builder(context).build().apply {
@@ -969,7 +977,7 @@ private fun VideoPlayer(file: File, playing: Boolean, muted: Boolean, onEnded: (
     }
     // Pause playback when an overlay covers the slideshow (so audio stops under a submenu).
     LaunchedEffect(playing) { player.playWhenReady = playing }
-    LaunchedEffect(muted) { player.volume = if (muted) 0f else 1f }
+    LaunchedEffect(isMuted) { player.volume = if (isMuted) 0f else 1f }
     DisposableEffect(file) {
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
@@ -982,14 +990,31 @@ private fun VideoPlayer(file: File, playing: Boolean, muted: Boolean, onEnded: (
             player.release()
         }
     }
-    AndroidView(
-        factory = { ctx ->
-            PlayerView(ctx).apply {
-                this.player = player
-                useController = false
-                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-            }
-        },
-        modifier = Modifier.fillMaxSize(),
-    )
+    Box(Modifier.fillMaxSize()) {
+        AndroidView(
+            factory = { ctx ->
+                PlayerView(ctx).apply {
+                    this.player = player
+                    useController = false
+                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                }
+            },
+            modifier = Modifier.fillMaxSize(),
+        )
+        IconButton(
+            onClick = { isMuted = !isMuted },
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 32.dp, end = 40.dp)
+                .size(72.dp)
+                .background(Color.Black.copy(alpha = 0.4f), shape = CircleShape)
+        ) {
+            Icon(
+                imageVector = if (isMuted) Icons.Filled.VolumeOff else Icons.Filled.VolumeUp,
+                contentDescription = if (isMuted) "Unmute video" else "Mute video",
+                tint = Color.White,
+                modifier = Modifier.size(36.dp)
+            )
+        }
+    }
 }
