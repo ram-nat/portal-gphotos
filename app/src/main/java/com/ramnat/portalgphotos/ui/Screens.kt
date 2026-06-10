@@ -690,9 +690,8 @@ private fun SettingsScreen(
             ToggleCard("Show photo date", "When each photo was taken", settings.showPhotoDate, onSetShowPhotoDate)
 
             ToggleCard(
-                "Sleep when alone (experimental)",
-                "Best for a passby/hallway frame. Wakes when you walk up, sleeps ~2 min after you leave. " +
-                    "It can't tell you're there if you sit still, so it may go dark while you linger. Camera shutter must be open.",
+                "Sleep when alone",
+                "Screen turns off when the room is empty. Note: Portal hardware requires brief blanking every 15 mins to check presence.",
                 settings.sleepWhenAlone,
                 onSetSleepWhenAlone,
             )

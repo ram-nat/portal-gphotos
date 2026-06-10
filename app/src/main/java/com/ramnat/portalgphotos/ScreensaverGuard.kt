@@ -12,6 +12,11 @@ import androidx.work.Worker
 import androidx.work.WorkerParameters
 import java.util.concurrent.TimeUnit
 
+enum class PowerPolicy {
+    AWAKE_FOREVER,
+    SLEEP_WHEN_ALONE
+}
+
 /**
  * Keeps our [PhotoDreamService] registered as the system screensaver.
  *
@@ -39,7 +44,7 @@ object ScreensaverGuard {
     /** Screen-off timeout (ms) used in "sleep when alone" mode. Long enough that presence
      *  motion-pulses keep resetting it while someone's around (so it doesn't blink), but
      *  short enough that an empty room sleeps reasonably soon. See the presence research. */
-    private const val SLEEP_ALONE_TIMEOUT_MS = 120_000
+    private const val SLEEP_ALONE_TIMEOUT_MS = 900_000 // 15 minutes
     private const val GUARD_PREFS = "screensaver_guard"
     private const val KEY_SAVED_TIMEOUT = "saved_screen_off_timeout"
 
@@ -56,26 +61,29 @@ object ScreensaverGuard {
      * Needs WRITE_SECURE_SETTINGS (screensaver) and WRITE_SETTINGS (screen-off timeout),
      * both granted once over adb. Silent no-op if a grant is missing.
      */
-    fun applyPowerPolicy(context: Context, sleepWhenAlone: Boolean) {
+    fun applyPowerPolicy(context: Context, policy: PowerPolicy) {
         val cr = context.contentResolver
         val prefs = context.getSharedPreferences(GUARD_PREFS, Context.MODE_PRIVATE)
         try {
-            if (sleepWhenAlone) {
-                // Remember the user's normal timeout once, so we can restore it later.
-                if (!prefs.contains(KEY_SAVED_TIMEOUT)) {
-                    val cur = Settings.System.getInt(cr, Settings.System.SCREEN_OFF_TIMEOUT, 15_000)
-                    prefs.edit().putInt(KEY_SAVED_TIMEOUT, cur).apply()
+            // If we are applying ANY policy, we might need to save the original timeout first.
+            if (!prefs.contains(KEY_SAVED_TIMEOUT)) {
+                val cur = Settings.System.getInt(cr, Settings.System.SCREEN_OFF_TIMEOUT, 15_000)
+                prefs.edit().putInt(KEY_SAVED_TIMEOUT, cur).apply()
+            }
+
+            when (policy) {
+                PowerPolicy.SLEEP_WHEN_ALONE -> {
+                    Settings.Secure.putInt(cr, KEY_ENABLED, 0)
+                    Settings.System.putInt(cr, Settings.System.SCREEN_OFF_TIMEOUT, SLEEP_ALONE_TIMEOUT_MS)
+                    Log.i(TAG, "sleep-when-alone: screensaver off, timeout ${SLEEP_ALONE_TIMEOUT_MS}ms")
                 }
-                Settings.Secure.putInt(cr, KEY_ENABLED, 0)
-                Settings.System.putInt(cr, Settings.System.SCREEN_OFF_TIMEOUT, SLEEP_ALONE_TIMEOUT_MS)
-                Log.i(TAG, "sleep-when-alone: screensaver off, timeout ${SLEEP_ALONE_TIMEOUT_MS}ms")
-            } else {
-                Settings.Secure.putInt(cr, KEY_ENABLED, 1)
-                val saved = prefs.getInt(KEY_SAVED_TIMEOUT, 15_000)
-                Settings.System.putInt(cr, Settings.System.SCREEN_OFF_TIMEOUT, saved)
-                prefs.edit().remove(KEY_SAVED_TIMEOUT).apply()
-                applyNow(context) // re-assert our screensaver component
-                Log.i(TAG, "always-on: screensaver on, timeout restored to ${saved}ms")
+                PowerPolicy.AWAKE_FOREVER -> {
+                    Settings.Secure.putInt(cr, KEY_ENABLED, 1)
+                    val saved = prefs.getInt(KEY_SAVED_TIMEOUT, 15_000)
+                    Settings.System.putInt(cr, Settings.System.SCREEN_OFF_TIMEOUT, saved)
+                    applyNow(context) // re-assert our screensaver component
+                    Log.i(TAG, "awake-forever: screensaver on, timeout restored to ${saved}ms")
+                }
             }
         } catch (e: SecurityException) {
             Log.w(TAG, "power policy needs WRITE_SECURE_SETTINGS + WRITE_SETTINGS (grant via adb)", e)
@@ -125,10 +133,10 @@ object ScreensaverGuard {
 class ScreensaverWorker(appContext: Context, params: WorkerParameters) :
     Worker(appContext, params) {
     override fun doWork(): Result {
-        // Re-apply the full power policy (component + enabled + timeout) so a boot or the
-        // launcher's reset converges back to the current mode, not just the component.
-        val sleepAlone = com.ramnat.portalgphotos.data.AppSettings(applicationContext).load().sleepWhenAlone
-        ScreensaverGuard.applyPowerPolicy(applicationContext, sleepAlone)
+        // Re-assert the screensaver component to win the boot race against Portal's launcher.
+        // We do not re-apply the full dynamic power policy here because the Activity manages
+        // the active screen timeout state.
+        ScreensaverGuard.applyNow(applicationContext)
         return Result.success()
     }
 }

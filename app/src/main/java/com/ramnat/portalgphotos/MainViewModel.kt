@@ -93,7 +93,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private var pickerJob: Job? = null
 
-    init { start(); weatherLoop() }
+    private val _powerPolicy = MutableStateFlow(PowerPolicy.AWAKE_FOREVER)
+    val powerPolicy: StateFlow<PowerPolicy> = _powerPolicy.asStateFlow()
+
+    init { start(); weatherLoop(); evaluateSleepState() }
 
     fun setShuffle(v: Boolean) { settings.setShuffle(v); _settings.value = _settings.value.copy(shuffle = v) }
     fun setIntervalMs(v: Long) { settings.setIntervalMs(v); _settings.value = _settings.value.copy(intervalMs = v) }
@@ -105,13 +108,21 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun setSleepWhenAlone(v: Boolean) {
         settings.setSleepWhenAlone(v)
         _settings.value = _settings.value.copy(sleepWhenAlone = v)
-        ScreensaverGuard.applyPowerPolicy(getApplication(), v)
+        evaluateSleepState()
     }
 
     fun setShowWeather(v: Boolean) {
         settings.setShowWeather(v)
         _settings.value = _settings.value.copy(showWeather = v)
         if (v) refreshWeather() else { _geoResults.value = emptyList(); _geoStatus.value = null }
+    }
+
+    private fun evaluateSleepState() {
+        if (_settings.value.sleepWhenAlone) {
+            _powerPolicy.value = PowerPolicy.SLEEP_WHEN_ALONE
+        } else {
+            _powerPolicy.value = PowerPolicy.AWAKE_FOREVER
+        }
     }
 
     /** Geocode a typed place name into candidate matches. One match auto-selects; several
