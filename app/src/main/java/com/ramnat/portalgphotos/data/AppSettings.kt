@@ -24,13 +24,6 @@ data class SettingsState(
     // room lets it sleep. Off = a permanent always-on frame.
     val sleepWhenAlone: Boolean = false,
     
-    // Display Sleep Mode
-    val inactivityTimeoutMinutes: Int = 0,
-    val sleepScheduleEnabled: Boolean = false,
-    val sleepStartHour: Int = 21,
-    val sleepStartMinute: Int = 0,
-    val sleepEndHour: Int = 8,
-    val sleepEndMinute: Int = 0,
 )
 
 /** Thin typed wrapper over SharedPreferences. The single home for app settings. */
@@ -55,12 +48,6 @@ class AppSettings(context: Context) {
             weatherLon = lon,
             weatherPlace = place,
             sleepWhenAlone = prefs.getBoolean(KEY_SLEEP_ALONE, false),
-            inactivityTimeoutMinutes = prefs.getInt(KEY_INACTIVITY_TIMEOUT, 0),
-            sleepScheduleEnabled = prefs.getBoolean(KEY_SLEEP_SCHEDULE_ENABLED, false),
-            sleepStartHour = prefs.getInt(KEY_SLEEP_START_HOUR, 21),
-            sleepStartMinute = prefs.getInt(KEY_SLEEP_START_MINUTE, 0),
-            sleepEndHour = prefs.getInt(KEY_SLEEP_END_HOUR, 8),
-            sleepEndMinute = prefs.getInt(KEY_SLEEP_END_MINUTE, 0),
         )
     }
 
@@ -78,10 +65,6 @@ class AppSettings(context: Context) {
             .putFloat(KEY_LON, lon.toFloat())
             .putString(KEY_PLACE, label)
             .apply()
-    fun setInactivityTimeoutMinutes(v: Int) = prefs.edit().putInt(KEY_INACTIVITY_TIMEOUT, v).apply()
-    fun setSleepScheduleEnabled(v: Boolean) = prefs.edit().putBoolean(KEY_SLEEP_SCHEDULE_ENABLED, v).apply()
-    fun setSleepStart(h: Int, m: Int) = prefs.edit().putInt(KEY_SLEEP_START_HOUR, h).putInt(KEY_SLEEP_START_MINUTE, m).apply()
-    fun setSleepEnd(h: Int, m: Int) = prefs.edit().putInt(KEY_SLEEP_END_HOUR, h).putInt(KEY_SLEEP_END_MINUTE, m).apply()
 
     private companion object {
         const val KEY_SHUFFLE = "shuffle"
@@ -95,11 +78,5 @@ class AppSettings(context: Context) {
         const val KEY_LAT = "weather_lat"
         const val KEY_LON = "weather_lon"
         const val KEY_PLACE = "weather_place"
-        const val KEY_INACTIVITY_TIMEOUT = "inactivity_timeout"
-        const val KEY_SLEEP_SCHEDULE_ENABLED = "sleep_schedule_enabled"
-        const val KEY_SLEEP_START_HOUR = "sleep_start_hour"
-        const val KEY_SLEEP_START_MINUTE = "sleep_start_minute"
-        const val KEY_SLEEP_END_HOUR = "sleep_end_hour"
-        const val KEY_SLEEP_END_MINUTE = "sleep_end_minute"
     }
 }

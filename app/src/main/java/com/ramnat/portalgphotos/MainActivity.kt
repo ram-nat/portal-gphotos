@@ -19,11 +19,6 @@ import com.ramnat.portalgphotos.ui.AppRoot
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Apply the screen power policy for the current mode (always-on vs sleep-when-alone)
-        // and seed the periodic guard that keeps our screensaver component asserted.
-        val sleepAlone = com.ramnat.portalgphotos.data.AppSettings(this).load().sleepWhenAlone
-        val policy = if (sleepAlone) PowerPolicy.SLEEP_WHEN_ALONE else PowerPolicy.AWAKE_FOREVER
-        ScreensaverGuard.applyPowerPolicy(this, policy)
         ScreensaverGuard.ensureScheduled(this)
         enterImmersive()
         setContent {
@@ -41,8 +36,7 @@ class MainActivity : ComponentActivity() {
                 }
                 ScreensaverGuard.applyPowerPolicy(
                     this@MainActivity,
-                    powerPolicy,
-                    settings.inactivityTimeoutMinutes * 60 * 1000
+                    powerPolicy
                 )
             }
             val weather by vm.weatherState.collectAsStateWithLifecycle()
@@ -75,10 +69,6 @@ class MainActivity : ComponentActivity() {
                 onSetShowPhotoDate = vm::setShowPhotoDate,
                 onSetShowWeather = vm::setShowWeather,
                 onSetSleepWhenAlone = vm::setSleepWhenAlone,
-                onSetInactivityTimeout = vm::setInactivityTimeoutMinutes,
-                onSetSleepScheduleEnabled = vm::setSleepScheduleEnabled,
-                onSetSleepStart = vm::setSleepStart,
-                onSetSleepEnd = vm::setSleepEnd,
                 onSearchLocation = vm::searchLocation,
                 onChooseLocation = vm::chooseLocation,
                 onDetectLocation = {
@@ -113,5 +103,21 @@ class MainActivity : ComponentActivity() {
             systemBarsBehavior =
                 WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Re-apply the user's preferred policy when the app is in the foreground.
+        // This ensures SLEEP_WHEN_ALONE disables the screensaver so we can doze gracefully.
+        val sleepAlone = com.ramnat.portalgphotos.data.AppSettings(this).load().sleepWhenAlone
+        val policy = if (sleepAlone) PowerPolicy.SLEEP_WHEN_ALONE else PowerPolicy.AWAKE_FOREVER
+        ScreensaverGuard.applyPowerPolicy(this, policy)
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // Re-enable the screensaver when the app goes to the background.
+        // This ensures the Portal's launcher "Photos" button continues to work!
+        ScreensaverGuard.applyPowerPolicy(this, PowerPolicy.AWAKE_FOREVER)
     }
 }

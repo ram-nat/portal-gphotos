@@ -120,10 +120,6 @@ fun AppRoot(
     onSetShowPhotoDate: (Boolean) -> Unit,
     onSetShowWeather: (Boolean) -> Unit,
     onSetSleepWhenAlone: (Boolean) -> Unit,
-    onSetInactivityTimeout: (Int) -> Unit,
-    onSetSleepScheduleEnabled: (Boolean) -> Unit,
-    onSetSleepStart: (Int, Int) -> Unit,
-    onSetSleepEnd: (Int, Int) -> Unit,
     onSearchLocation: (String) -> Unit,
     onChooseLocation: (GeoPlace) -> Unit,
     onDetectLocation: () -> Unit,
@@ -154,10 +150,6 @@ fun AppRoot(
                 onSetShowPhotoDate = onSetShowPhotoDate,
                 onSetShowWeather = onSetShowWeather,
                 onSetSleepWhenAlone = onSetSleepWhenAlone,
-                onSetInactivityTimeout = onSetInactivityTimeout,
-                onSetSleepScheduleEnabled = onSetSleepScheduleEnabled,
-                onSetSleepStart = onSetSleepStart,
-                onSetSleepEnd = onSetSleepEnd,
                 onSearchLocation = onSearchLocation,
                 onChooseLocation = onChooseLocation,
                 onDetectLocation = onDetectLocation,
@@ -295,10 +287,6 @@ private fun SlideshowScreen(
     onSetShowPhotoDate: (Boolean) -> Unit,
     onSetShowWeather: (Boolean) -> Unit,
     onSetSleepWhenAlone: (Boolean) -> Unit,
-    onSetInactivityTimeout: (Int) -> Unit,
-    onSetSleepScheduleEnabled: (Boolean) -> Unit,
-    onSetSleepStart: (Int, Int) -> Unit,
-    onSetSleepEnd: (Int, Int) -> Unit,
     onSearchLocation: (String) -> Unit,
     onChooseLocation: (GeoPlace) -> Unit,
     onDetectLocation: () -> Unit,
@@ -432,10 +420,6 @@ private fun SlideshowScreen(
                 onSetShowPhotoDate = onSetShowPhotoDate,
                 onSetShowWeather = onSetShowWeather,
                 onSetSleepWhenAlone = onSetSleepWhenAlone,
-                onSetInactivityTimeout = onSetInactivityTimeout,
-                onSetSleepScheduleEnabled = onSetSleepScheduleEnabled,
-                onSetSleepStart = onSetSleepStart,
-                onSetSleepEnd = onSetSleepEnd,
                 onSearchLocation = onSearchLocation,
                 onChooseLocation = onChooseLocation,
                 onDetectLocation = onDetectLocation,
@@ -613,10 +597,6 @@ private fun SettingsScreen(
     onSetShowPhotoDate: (Boolean) -> Unit,
     onSetShowWeather: (Boolean) -> Unit,
     onSetSleepWhenAlone: (Boolean) -> Unit,
-    onSetInactivityTimeout: (Int) -> Unit,
-    onSetSleepScheduleEnabled: (Boolean) -> Unit,
-    onSetSleepStart: (Int, Int) -> Unit,
-    onSetSleepEnd: (Int, Int) -> Unit,
     onSearchLocation: (String) -> Unit,
     onChooseLocation: (GeoPlace) -> Unit,
     onDetectLocation: () -> Unit,
@@ -684,76 +664,11 @@ private fun SettingsScreen(
             ToggleCard("Show photo date", "When each photo was taken", settings.showPhotoDate, onSetShowPhotoDate)
 
             ToggleCard(
-                "Sleep when alone (experimental)",
-                "Best for a passby/hallway frame. Wakes when you walk up, sleeps ~2 min after you leave. " +
-                    "It can't tell you're there if you sit still, so it may go dark while you linger. Camera shutter must be open.",
+                "Sleep when alone",
+                "Screen turns off when the room is empty. Note: Portal hardware requires brief blanking every 15 mins to check presence.",
                 settings.sleepWhenAlone,
                 onSetSleepWhenAlone,
             )
-
-            SettingCard {
-                Text("Inactivity timeout", color = Color.White, fontSize = 24.sp)
-                Text("Turn off screen after a period of no interaction", color = SubtitleColor, fontSize = 16.sp)
-                Spacer(Modifier.height(16.dp))
-                ChipRow(
-                    options = listOf("Never" to 0, "5m" to 5, "15m" to 15, "30m" to 30, "1h" to 60),
-                    selected = settings.inactivityTimeoutMinutes,
-                    onSelect = onSetInactivityTimeout,
-                )
-            }
-
-            SettingCard {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Scheduled sleep", color = Color.White, fontSize = 24.sp)
-                        Text("Turn off screen completely during these hours", color = SubtitleColor, fontSize = 16.sp)
-                    }
-                    Switch(checked = settings.sleepScheduleEnabled, onCheckedChange = onSetSleepScheduleEnabled)
-                }
-                if (settings.sleepScheduleEnabled) {
-                    Spacer(Modifier.height(16.dp))
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                        Column(Modifier.weight(1f)) {
-                            Text("Sleep at", color = Color.White, fontSize = 18.sp)
-                            Spacer(Modifier.height(8.dp))
-                            val ampmStart = if (settings.sleepStartHour >= 12) "PM" else "AM"
-                            val hStart = if (settings.sleepStartHour % 12 == 0) 12 else settings.sleepStartHour % 12
-                            val mStart = settings.sleepStartMinute.toString().padStart(2, '0')
-                            Button(
-                                onClick = {
-                                    // A very simple quick-toggle to cycle through common hours (e.g., 8 PM, 9 PM, 10 PM, 11 PM, 12 AM).
-                                    // In a full implementation, we'd open a time picker dialog. For Portal, simple cycling works.
-                                    val nextHour = (settings.sleepStartHour + 1) % 24
-                                    onSetSleepStart(nextHour, settings.sleepStartMinute)
-                                },
-                                modifier = Modifier.fillMaxWidth().height(56.dp),
-                                colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = ChipUnselected)
-                            ) {
-                                Text("$hStart:$mStart $ampmStart", color = Color.White, fontSize = 20.sp)
-                            }
-                        }
-                        Column(Modifier.weight(1f)) {
-                            Text("Wake at", color = Color.White, fontSize = 18.sp)
-                            Spacer(Modifier.height(8.dp))
-                            val ampmEnd = if (settings.sleepEndHour >= 12) "PM" else "AM"
-                            val hEnd = if (settings.sleepEndHour % 12 == 0) 12 else settings.sleepEndHour % 12
-                            val mEnd = settings.sleepEndMinute.toString().padStart(2, '0')
-                            Button(
-                                onClick = {
-                                    val nextHour = (settings.sleepEndHour + 1) % 24
-                                    onSetSleepEnd(nextHour, settings.sleepEndMinute)
-                                },
-                                modifier = Modifier.fillMaxWidth().height(56.dp),
-                                colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = ChipUnselected)
-                            ) {
-                                Text("$hEnd:$mEnd $ampmEnd", color = Color.White, fontSize = 20.sp)
-                            }
-                        }
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    Text("Tap the time buttons to cycle to the next hour.", color = SubtitleColor, fontSize = 14.sp)
-                }
-            }
 
             WeatherCard(
                 settings = settings,

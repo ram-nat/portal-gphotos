@@ -14,8 +14,6 @@ import java.util.concurrent.TimeUnit
 
 enum class PowerPolicy {
     AWAKE_FOREVER,
-    TIMEOUT_INACTIVE,
-    SCHEDULED_SLEEP,
     SLEEP_WHEN_ALONE
 }
 
@@ -46,7 +44,7 @@ object ScreensaverGuard {
     /** Screen-off timeout (ms) used in "sleep when alone" mode. Long enough that presence
      *  motion-pulses keep resetting it while someone's around (so it doesn't blink), but
      *  short enough that an empty room sleeps reasonably soon. See the presence research. */
-    private const val SLEEP_ALONE_TIMEOUT_MS = 120_000
+    private const val SLEEP_ALONE_TIMEOUT_MS = 900_000 // 15 minutes
     private const val GUARD_PREFS = "screensaver_guard"
     private const val KEY_SAVED_TIMEOUT = "saved_screen_off_timeout"
 
@@ -63,7 +61,7 @@ object ScreensaverGuard {
      * Needs WRITE_SECURE_SETTINGS (screensaver) and WRITE_SETTINGS (screen-off timeout),
      * both granted once over adb. Silent no-op if a grant is missing.
      */
-    fun applyPowerPolicy(context: Context, policy: PowerPolicy, inactivityTimeoutMs: Int = 0) {
+    fun applyPowerPolicy(context: Context, policy: PowerPolicy) {
         val cr = context.contentResolver
         val prefs = context.getSharedPreferences(GUARD_PREFS, Context.MODE_PRIVATE)
         try {
@@ -78,17 +76,6 @@ object ScreensaverGuard {
                     Settings.Secure.putInt(cr, KEY_ENABLED, 0)
                     Settings.System.putInt(cr, Settings.System.SCREEN_OFF_TIMEOUT, SLEEP_ALONE_TIMEOUT_MS)
                     Log.i(TAG, "sleep-when-alone: screensaver off, timeout ${SLEEP_ALONE_TIMEOUT_MS}ms")
-                }
-                PowerPolicy.TIMEOUT_INACTIVE -> {
-                    Settings.Secure.putInt(cr, KEY_ENABLED, 0)
-                    val timeout = if (inactivityTimeoutMs > 0) inactivityTimeoutMs else 15_000
-                    Settings.System.putInt(cr, Settings.System.SCREEN_OFF_TIMEOUT, timeout)
-                    Log.i(TAG, "timeout-inactive: screensaver off, timeout ${timeout}ms")
-                }
-                PowerPolicy.SCHEDULED_SLEEP -> {
-                    Settings.Secure.putInt(cr, KEY_ENABLED, 0)
-                    Settings.System.putInt(cr, Settings.System.SCREEN_OFF_TIMEOUT, 30_000) // 30 seconds
-                    Log.i(TAG, "scheduled-sleep: screensaver off, timeout 30000ms")
                 }
                 PowerPolicy.AWAKE_FOREVER -> {
                     Settings.Secure.putInt(cr, KEY_ENABLED, 1)
