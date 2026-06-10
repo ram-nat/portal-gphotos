@@ -52,7 +52,9 @@ android {
             if (keystoreProps.isNotEmpty()) {
                 signingConfig = signingConfigs.getByName("release")
             }
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             buildConfigField("String", "OAUTH_CLIENT_ID", "\"\"")
             buildConfigField("String", "OAUTH_CLIENT_SECRET", "\"\"")
         }
