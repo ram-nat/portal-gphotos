@@ -100,6 +100,7 @@ dependencies {
     // Image loading (stills) and QR generation
     implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("com.google.zxing:core:3.5.3")
+    implementation("androidx.palette:palette-ktx:1.0.0")
 
     // Video playback
     implementation("androidx.media3:media3-exoplayer:1.4.1")

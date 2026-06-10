@@ -101,6 +101,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun setMuteVideos(v: Boolean) { settings.setMuteVideos(v); _settings.value = _settings.value.copy(muteVideos = v) }
     fun setShowClock(v: Boolean) { settings.setShowClock(v); _settings.value = _settings.value.copy(showClock = v) }
     fun setShowPhotoDate(v: Boolean) { settings.setShowPhotoDate(v); _settings.value = _settings.value.copy(showPhotoDate = v) }
+    fun setBackgroundStyle(v: com.ramnat.portalgphotos.data.BackgroundStyle) { settings.setBackgroundStyle(v); _settings.value = _settings.value.copy(backgroundStyle = v) }
     fun setSleepWhenAlone(v: Boolean) {
         settings.setSleepWhenAlone(v)
         _settings.value = _settings.value.copy(sleepWhenAlone = v)

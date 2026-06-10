@@ -7,6 +7,9 @@ import android.content.Context
  *  doesn't break the persisted value. */
 enum class SlideEffect { NONE, FADE, SLIDE, KEN_BURNS }
 
+/** Background style for images that don't fit the aspect ratio perfectly. */
+enum class BackgroundStyle { BLUR, BLACK, COLOR }
+
 /** All user-facing settings, persisted via [AppSettings]. */
 data class SettingsState(
     val shuffle: Boolean = false,
@@ -23,6 +26,7 @@ data class SettingsState(
     // decision back to Portal's presence policy: someone there keeps it lit, an empty
     // room lets it sleep. Off = a permanent always-on frame.
     val sleepWhenAlone: Boolean = false,
+    val backgroundStyle: BackgroundStyle = BackgroundStyle.BLUR,
 )
 
 /** Thin typed wrapper over SharedPreferences. The single home for app settings. */
@@ -47,6 +51,9 @@ class AppSettings(context: Context) {
             weatherLon = lon,
             weatherPlace = place,
             sleepWhenAlone = prefs.getBoolean(KEY_SLEEP_ALONE, false),
+            backgroundStyle = runCatching {
+                BackgroundStyle.valueOf(prefs.getString(KEY_BG_STYLE, null) ?: BackgroundStyle.BLUR.name)
+            }.getOrDefault(BackgroundStyle.BLUR),
         )
     }
 
@@ -58,6 +65,7 @@ class AppSettings(context: Context) {
     fun setShowPhotoDate(v: Boolean) = prefs.edit().putBoolean(KEY_PHOTO_DATE, v).apply()
     fun setShowWeather(v: Boolean) = prefs.edit().putBoolean(KEY_WEATHER, v).apply()
     fun setSleepWhenAlone(v: Boolean) = prefs.edit().putBoolean(KEY_SLEEP_ALONE, v).apply()
+    fun setBackgroundStyle(v: BackgroundStyle) = prefs.edit().putString(KEY_BG_STYLE, v.name).apply()
     fun setWeatherLocation(lat: Double, lon: Double, label: String) =
         prefs.edit()
             .putFloat(KEY_LAT, lat.toFloat())
@@ -77,5 +85,6 @@ class AppSettings(context: Context) {
         const val KEY_LAT = "weather_lat"
         const val KEY_LON = "weather_lon"
         const val KEY_PLACE = "weather_place"
+        const val KEY_BG_STYLE = "bg_style"
     }
 }

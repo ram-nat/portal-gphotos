@@ -3,6 +3,7 @@ package com.ramnat.portalgphotos.ui
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
@@ -85,13 +86,18 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
+import android.graphics.drawable.BitmapDrawable
+import androidx.palette.graphics.Palette
 import coil.compose.AsyncImage
+import coil.imageLoader
 import coil.request.ImageRequest
+import coil.request.SuccessResult
 import com.ramnat.portalgphotos.R
 import com.ramnat.portalgphotos.UiState
 import com.ramnat.portalgphotos.data.CachedItem
 import com.ramnat.portalgphotos.data.GeoPlace
 import com.ramnat.portalgphotos.data.SettingsState
+import com.ramnat.portalgphotos.data.BackgroundStyle
 import com.ramnat.portalgphotos.data.SlideEffect
 import com.ramnat.portalgphotos.data.WeatherNow
 import java.io.File
@@ -119,6 +125,7 @@ fun AppRoot(
     onSetShowClock: (Boolean) -> Unit,
     onSetShowPhotoDate: (Boolean) -> Unit,
     onSetShowWeather: (Boolean) -> Unit,
+    onSetBackgroundStyle: (com.ramnat.portalgphotos.data.BackgroundStyle) -> Unit,
     onSetSleepWhenAlone: (Boolean) -> Unit,
     onSearchLocation: (String) -> Unit,
     onChooseLocation: (GeoPlace) -> Unit,
@@ -149,6 +156,7 @@ fun AppRoot(
                 onSetShowClock = onSetShowClock,
                 onSetShowPhotoDate = onSetShowPhotoDate,
                 onSetShowWeather = onSetShowWeather,
+                onSetBackgroundStyle = onSetBackgroundStyle,
                 onSetSleepWhenAlone = onSetSleepWhenAlone,
                 onSearchLocation = onSearchLocation,
                 onChooseLocation = onChooseLocation,
@@ -286,6 +294,7 @@ private fun SlideshowScreen(
     onSetShowClock: (Boolean) -> Unit,
     onSetShowPhotoDate: (Boolean) -> Unit,
     onSetShowWeather: (Boolean) -> Unit,
+    onSetBackgroundStyle: (com.ramnat.portalgphotos.data.BackgroundStyle) -> Unit,
     onSetSleepWhenAlone: (Boolean) -> Unit,
     onSearchLocation: (String) -> Unit,
     onChooseLocation: (GeoPlace) -> Unit,
@@ -363,7 +372,7 @@ private fun SlideshowScreen(
             if (item.isVideo) {
                 VideoPlayer(item.file, playing = interactive, muted = settings.muteVideos, onEnded = { advance(1) })
             } else {
-                BlurredFillPhoto(item.file, settings.effect)
+                PhotoBackground(item.file, settings.effect, settings.backgroundStyle)
             }
         }
         // The effect drives the transition between photos: hard cut, crossfade, or slide.
@@ -419,6 +428,7 @@ private fun SlideshowScreen(
                 onSetShowClock = onSetShowClock,
                 onSetShowPhotoDate = onSetShowPhotoDate,
                 onSetShowWeather = onSetShowWeather,
+                onSetBackgroundStyle = onSetBackgroundStyle,
                 onSetSleepWhenAlone = onSetSleepWhenAlone,
                 onSearchLocation = onSearchLocation,
                 onChooseLocation = onChooseLocation,
@@ -596,6 +606,7 @@ private fun SettingsScreen(
     onSetShowClock: (Boolean) -> Unit,
     onSetShowPhotoDate: (Boolean) -> Unit,
     onSetShowWeather: (Boolean) -> Unit,
+    onSetBackgroundStyle: (com.ramnat.portalgphotos.data.BackgroundStyle) -> Unit,
     onSetSleepWhenAlone: (Boolean) -> Unit,
     onSearchLocation: (String) -> Unit,
     onChooseLocation: (GeoPlace) -> Unit,
@@ -654,6 +665,21 @@ private fun SettingsScreen(
                     ),
                     selected = settings.effect,
                     onSelect = onSetEffect,
+                )
+            }
+
+            SettingCard {
+                Text("Background", color = Color.White, fontSize = 24.sp)
+                Text("Fill style for photos that don't match the screen shape", color = SubtitleColor, fontSize = 16.sp)
+                Spacer(Modifier.height(16.dp))
+                ChipRow(
+                    options = listOf(
+                        "Blur" to com.ramnat.portalgphotos.data.BackgroundStyle.BLUR,
+                        "Black" to com.ramnat.portalgphotos.data.BackgroundStyle.BLACK,
+                        "Color" to com.ramnat.portalgphotos.data.BackgroundStyle.COLOR,
+                    ),
+                    selected = settings.backgroundStyle,
+                    onSelect = onSetBackgroundStyle,
                 )
             }
 
@@ -912,19 +938,54 @@ private fun ManageScreen(
 }
 
 @Composable
-private fun BlurredFillPhoto(file: File, effect: SlideEffect) {
+private fun PhotoBackground(file: File, effect: SlideEffect, bgStyle: BackgroundStyle) {
     Box(Modifier.fillMaxSize()) {
-        // Fill the aspect-ratio gap with a blurred zoom of the same photo (like Google's
-        // ambient mode). Cheap blur: decode the photo tiny and let it upscale to fill —
-        // Compose's Modifier.blur needs API 31, but Portal is API 29.
-        AsyncImage(
-            model = ImageRequest.Builder(LocalContext.current).data(file).size(96).build(),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize(),
-        )
-        // Mute the background so the sharp foreground stays the focus.
-        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.30f)))
+        when (bgStyle) {
+            BackgroundStyle.BLACK -> {
+                Box(Modifier.fillMaxSize().background(Color.Black))
+            }
+            BackgroundStyle.BLUR -> {
+                // Fill the aspect-ratio gap with a blurred zoom of the same photo (like Google's
+                // ambient mode). Cheap blur: decode the photo tiny and let it upscale to fill —
+                // Compose's Modifier.blur needs API 31, but Portal is API 29.
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current).data(file).size(96).build(),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                // Mute the background so the sharp foreground stays the focus.
+                Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.30f)))
+            }
+            BackgroundStyle.COLOR -> {
+                var bgColor by remember(file) { mutableStateOf(Color.Black) }
+                val context = LocalContext.current
+                LaunchedEffect(file) {
+                    val request = ImageRequest.Builder(context)
+                        .data(file)
+                        .size(256)
+                        .allowHardware(false)
+                        .build()
+                    val result = context.imageLoader.execute(request)
+                    if (result is SuccessResult) {
+                        val bitmap = (result.drawable as? BitmapDrawable)?.bitmap
+                        if (bitmap != null) {
+                            val palette = Palette.from(bitmap).generate()
+                            // Fallback chain: Dark Muted -> Muted -> Dominant -> Black
+                            val colorInt = palette.getDarkMutedColor(
+                                palette.getMutedColor(
+                                    palette.getDominantColor(android.graphics.Color.BLACK)
+                                )
+                            )
+                            bgColor = Color(colorInt)
+                        }
+                    }
+                }
+                val animatedColor by animateColorAsState(bgColor, tween(900), label = "bgColor")
+                Box(Modifier.fillMaxSize().background(animatedColor))
+            }
+        }
+        
         // The sharp, fully-visible photo on top — animated (Ken Burns) or static per setting.
         if (effect == SlideEffect.KEN_BURNS) KenBurnsImage(file) else StaticImage(file)
     }
