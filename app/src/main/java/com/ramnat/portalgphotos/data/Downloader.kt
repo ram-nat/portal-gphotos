@@ -4,7 +4,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
 import java.io.IOException
-
+import android.content.res.Resources
 /**
  * Downloads picked media bytes. Picker baseUrls require the OAuth bearer token and
  * accept Google's sizing suffixes: "=w<W>-h<H>" for stills, "=dv" for video.
@@ -18,7 +18,9 @@ class Downloader(
     /** [key] must be unique across picks so appended media never overwrites existing files. */
     @Throws(IOException::class)
     fun download(item: PickedItem, key: String): CachedItem {
-        val url = if (item.isVideoType()) "${item.baseUrl}=dv" else "${item.baseUrl}=w2560-h2560"
+        val metrics = Resources.getSystem().displayMetrics
+        val maxRes = maxOf(metrics.widthPixels, metrics.heightPixels)
+        val url = if (item.isVideoType()) "${item.baseUrl}=dv" else "${item.baseUrl}=w$maxRes-h$maxRes"
         val req = Request.Builder()
             .url(url)
             .header("Authorization", "Bearer ${tokens.accessToken()}")
