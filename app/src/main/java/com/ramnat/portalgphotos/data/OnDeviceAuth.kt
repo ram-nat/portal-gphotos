@@ -30,17 +30,11 @@ import java.util.concurrent.TimeUnit
  */
 class OnDeviceAuth(
     private val http: OkHttpClient,
-    private val tokenFile: File,
-    clientFile: File? = null,
+    private val tokens: TokenStore,
+    private val clientFile: File? = null,
 ) {
-    private val clientId: String
-    private val clientSecret: String
-
-    init {
-        val (id, secret) = resolveCreds(clientFile)
-        clientId = id
-        clientSecret = secret
-    }
+    private val clientId: String get() = resolveCreds(clientFile).first
+    private val clientSecret: String get() = resolveCreds(clientFile).second
 
     private val authUri = "https://accounts.google.com/o/oauth2/v2/auth"
     private val tokenUri = "https://oauth2.googleapis.com/token"
@@ -49,13 +43,26 @@ class OnDeviceAuth(
     /** Prefer a pushed client file; fall back to build-time creds. Accepts Google's
      *  `client_secret.json` (`installed`/`web` wrapper) or a flat `{client_id, client_secret}`. */
     private fun resolveCreds(clientFile: File?): Pair<String, String> {
+        val savedId = tokens.prefs.getString("client_id", null)
+        val savedSecret = tokens.prefs.getString("client_secret", null)
+        if (savedId != null && savedSecret != null && savedId.isNotBlank() && savedSecret.isNotBlank()) {
+            return savedId to savedSecret
+        }
+
         if (clientFile != null && clientFile.isFile) {
             runCatching {
                 val o = JSONObject(clientFile.readText())
                 val inner = o.optJSONObject("installed") ?: o.optJSONObject("web") ?: o
                 val id = inner.optString("client_id")
                 val secret = inner.optString("client_secret")
-                if (id.isNotBlank() && secret.isNotBlank()) return id to secret
+                if (id.isNotBlank() && secret.isNotBlank()) {
+                    tokens.prefs.edit()
+                        .putString("client_id", id)
+                        .putString("client_secret", secret)
+                        .apply()
+                    clientFile.delete()
+                    return id to secret
+                }
             }
         }
         return BuildConfig.OAUTH_CLIENT_ID to BuildConfig.OAUTH_CLIENT_SECRET
@@ -155,13 +162,12 @@ class OnDeviceAuth(
     }
 
     private fun writeTokenConfig(refreshToken: String) {
-        val cfg = JSONObject()
-            .put("client_id", clientId)
-            .put("client_secret", clientSecret)
-            .put("refresh_token", refreshToken)
-            .put("token_uri", tokenUri)
-            .put("scope", scope)
-        tokenFile.writeText(cfg.toString(2))
+        tokens.saveConfig(TokenStore.Config(
+            clientId = clientId,
+            clientSecret = clientSecret,
+            refreshToken = refreshToken,
+            tokenUri = tokenUri
+        ))
     }
 
     private fun randomToken(): String {

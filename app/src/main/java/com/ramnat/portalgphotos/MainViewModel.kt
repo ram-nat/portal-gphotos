@@ -59,10 +59,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private val baseDir: File = app.getExternalFilesDir(null) ?: app.filesDir
     private val tokenFile = File(baseDir, "token.json")
-    private val tokens = TokenStore(tokenFile, http)
+    private val tokens = TokenStore(app, tokenFile, http)
     // OAuth client creds: a pushed client_secret.json (deploy a prebuilt APK without
     // rebuilding) or, failing that, the build-time BuildConfig values.
-    private val auth = OnDeviceAuth(http, tokenFile, clientFile = File(baseDir, "client_secret.json"))
+    private val auth = OnDeviceAuth(http, tokens, clientFile = File(baseDir, "client_secret.json"))
     private val picker = PickerClient(http, tokens)
     private val cacheDir = File(baseDir, "media").apply { mkdirs() }
     private val cache = MediaCache(cacheDir)

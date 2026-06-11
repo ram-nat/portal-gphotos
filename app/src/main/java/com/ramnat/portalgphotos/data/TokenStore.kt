@@ -1,5 +1,8 @@
 package com.ramnat.portalgphotos.data
 
+import android.content.Context
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
 import okhttp3.FormBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -12,7 +15,7 @@ import java.io.IOException
  * pushed via adb) and exchanges the refresh token for short-lived access tokens.
  * Pure OkHttp + org.json — no Google/GMS libraries.
  */
-class TokenStore(private val configFile: File, private val http: OkHttpClient) {
+class TokenStore(context: Context, private val configFile: File, private val http: OkHttpClient) {
 
     data class Config(
         val clientId: String,
@@ -24,19 +27,53 @@ class TokenStore(private val configFile: File, private val http: OkHttpClient) {
     @Volatile private var cachedToken: String? = null
     @Volatile private var expiresAtMs: Long = 0L
 
+    private val masterKey = MasterKey.Builder(context)
+        .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+        .build()
+
+    val prefs = EncryptedSharedPreferences.create(
+        context,
+        "secret_prefs",
+        masterKey,
+        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+    )
+
     fun config(): Config? {
+        val rToken = prefs.getString("refresh_token", null)
+        if (rToken != null) {
+            return Config(
+                clientId = prefs.getString("client_id", "")!!,
+                clientSecret = prefs.getString("client_secret", "")!!,
+                refreshToken = rToken,
+                tokenUri = prefs.getString("token_uri", "https://oauth2.googleapis.com/token")!!
+            )
+        }
+
         if (!configFile.exists()) return null
         return try {
             val o = JSONObject(configFile.readText())
-            Config(
+            val cfg = Config(
                 clientId = o.getString("client_id"),
                 clientSecret = o.getString("client_secret"),
                 refreshToken = o.getString("refresh_token"),
                 tokenUri = o.optString("token_uri", "https://oauth2.googleapis.com/token"),
             )
+            saveConfig(cfg)
+            configFile.delete()
+            cfg
         } catch (e: Exception) {
             null
         }
+    }
+
+    fun saveConfig(cfg: Config) {
+        prefs.edit()
+            .putString("client_id", cfg.clientId)
+            .putString("client_secret", cfg.clientSecret)
+            .putString("refresh_token", cfg.refreshToken)
+            .putString("token_uri", cfg.tokenUri)
+            .apply()
     }
 
     @Synchronized
