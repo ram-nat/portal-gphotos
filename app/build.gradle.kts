@@ -43,6 +43,8 @@ android {
         versionCode = 1
         versionName = "0.1.0"
 
+        val enableDevTools = project.findProperty("enableDevTools")?.toString()?.toBoolean() ?: false
+        buildConfigField("Boolean", "ENABLE_DEV_TOOLS", "$enableDevTools")
         buildConfigField("String", "OAUTH_CLIENT_ID", "\"$oauthClientId\"")
         buildConfigField("String", "OAUTH_CLIENT_SECRET", "\"$oauthClientSecret\"")
     }

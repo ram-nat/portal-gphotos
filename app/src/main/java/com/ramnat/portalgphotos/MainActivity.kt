@@ -83,6 +83,8 @@ class MainActivity : ComponentActivity() {
                     }
                 },
                 onRemoveItems = vm::removeItems,
+                onStashState = vm::stashStateForTesting,
+                onRestoreState = vm::restoreStateFromTesting,
             )
         }
     }

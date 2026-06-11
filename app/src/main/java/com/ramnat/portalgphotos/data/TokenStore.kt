@@ -50,7 +50,9 @@ class TokenStore(context: Context, private val configFile: File, private val htt
             )
         }
 
-        if (!configFile.exists()) return null
+        if (!configFile.exists()) {
+            return null
+        }
         return try {
             val o = JSONObject(configFile.readText())
             val cfg = Config(

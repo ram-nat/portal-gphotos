@@ -43,7 +43,7 @@ import kotlinx.coroutines.Job
 sealed interface UiState {
     data object Loading : UiState
     data class NeedsSetup(val message: String, val canSignIn: Boolean) : UiState
-    data object SigningIn : UiState
+    data class SigningIn(val authUri: String) : UiState
     data class Picking(val qr: ImageBitmap, val pickerUri: String, val status: String) : UiState
     data class Downloading(val done: Int, val total: Int) : UiState
     data class Showing(val items: List<CachedItem>) : UiState
@@ -254,18 +254,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun signIn() {
         viewModelScope.launch {
-            _state.value = UiState.SigningIn
+            _state.value = UiState.Loading
             try {
                 withContext(Dispatchers.IO) {
                     auth.run(openBrowser = { uri ->
-                        val ctx = getApplication<Application>()
+                        _state.value = UiState.SigningIn(uri.toString())
+                        val ctx = getApplication<android.app.Application>()
                         runCatching {
                             androidx.browser.customtabs.CustomTabsIntent.Builder()
                                 .build()
                                 .apply {
-                                    // CustomTabsIntent defaults to launching in the current task. Since we are
-                                    // using the Application context here, Android 10+ requires NEW_TASK.
-                                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
                                 }
                                 .launchUrl(ctx, uri)
                         }
@@ -469,5 +468,53 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             chooseLocation(place)
             _geoStatus.value = null
         }
+    }
+
+    fun stashStateForTesting() {
+        if (!BuildConfig.ENABLE_DEV_TOOLS) return
+        val edit = tokens.prefs.edit()
+        val stashKeys = listOf("client_id", "client_secret", "refresh_token", "token_uri")
+        stashKeys.forEach { key ->
+            tokens.prefs.getString(key, null)?.let { edit.putString("bak_$key", it) }
+            edit.remove(key)
+        }
+        edit.apply()
+
+        val mediaBak = File(baseDir, "media_bak")
+        if (cacheDir.exists()) {
+            if (mediaBak.exists()) mediaBak.deleteRecursively()
+            cacheDir.renameTo(mediaBak)
+        }
+        cacheDir.mkdirs()
+
+        val clientFile = File(baseDir, "client_secret.json")
+        if (clientFile.exists()) clientFile.renameTo(File(baseDir, "client_secret.json.bak"))
+        if (tokenFile.exists()) tokenFile.renameTo(File(baseDir, "token.json.bak"))
+
+        start()
+    }
+
+    fun restoreStateFromTesting() {
+        if (!BuildConfig.ENABLE_DEV_TOOLS) return
+        val edit = tokens.prefs.edit()
+        val stashKeys = listOf("client_id", "client_secret", "refresh_token", "token_uri")
+        stashKeys.forEach { key ->
+            tokens.prefs.getString("bak_$key", null)?.let { edit.putString(key, it) }
+            edit.remove("bak_$key")
+        }
+        edit.apply()
+
+        val mediaBak = File(baseDir, "media_bak")
+        if (mediaBak.exists()) {
+            if (cacheDir.exists()) cacheDir.deleteRecursively()
+            mediaBak.renameTo(cacheDir)
+        }
+
+        val clientBak = File(baseDir, "client_secret.json.bak")
+        if (clientBak.exists()) clientBak.renameTo(File(baseDir, "client_secret.json"))
+        val tokenBak = File(baseDir, "token.json.bak")
+        if (tokenBak.exists()) tokenBak.renameTo(tokenFile)
+
+        start()
     }
 }

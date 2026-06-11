@@ -31,6 +31,7 @@ class Downloader(
             }
             val ext = if (item.isVideoType()) "mp4" else "jpg"
             val out = File(cacheDir, "media_$key.$ext")
+            out.parentFile?.mkdirs()
             val stream = resp.body?.byteStream() ?: throw IOException("empty response body")
             stream.use { input -> out.outputStream().use { input.copyTo(it) } }
             return CachedItem(item.id, item.type, out, item.mimeType, item.width, item.height, item.createTime)

@@ -131,12 +131,14 @@ fun AppRoot(
     onChooseLocation: (GeoPlace) -> Unit,
     onDetectLocation: () -> Unit,
     onRemoveItems: (Set<String>) -> Unit,
+    onStashState: () -> Unit,
+    onRestoreState: () -> Unit,
     gesturesEnabled: Boolean = true,
 ) {
     Surface(modifier = Modifier.fillMaxSize(), color = Color.Black) {
         when (state) {
             is UiState.Loading -> CenterMessage("Loading…")
-            is UiState.NeedsSetup -> SetupScreen(state.message, state.canSignIn, onSignIn, onRetry)
+            is UiState.NeedsSetup -> SetupScreen(state.message, state.canSignIn, onSignIn, onRetry, onRestoreState)
             is UiState.SigningIn -> CenterMessage("Opening sign-in…\nApprove access, then return to this app.")
             is UiState.Picking -> PickingScreen(state.qr, state.pickerUri, state.status, onCancel)
             is UiState.Downloading ->
@@ -162,6 +164,8 @@ fun AppRoot(
                 onChooseLocation = onChooseLocation,
                 onDetectLocation = onDetectLocation,
                 onRemoveItems = onRemoveItems,
+                onStashState = onStashState,
+                onRestoreState = onRestoreState,
                 gesturesEnabled = gesturesEnabled,
             )
             is UiState.Error -> ErrorScreen(state.message, onRetry)
@@ -180,7 +184,7 @@ private fun CenterMessage(text: String) {
 }
 
 @Composable
-private fun SetupScreen(message: String, canSignIn: Boolean, onSignIn: () -> Unit, onRetry: () -> Unit) {
+private fun SetupScreen(message: String, canSignIn: Boolean, onSignIn: () -> Unit, onRetry: () -> Unit, onRestore: (() -> Unit)? = null) {
     Column(
         Modifier.fillMaxSize().padding(top = 64.dp, start = 48.dp, end = 48.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -197,6 +201,12 @@ private fun SetupScreen(message: String, canSignIn: Boolean, onSignIn: () -> Uni
         } else {
             Button(onClick = onRetry, modifier = Modifier.height(72.dp)) {
                 Text("Retry", fontSize = 24.sp)
+            }
+        }
+        if (com.ramnat.portalgphotos.BuildConfig.ENABLE_DEV_TOOLS && onRestore != null) {
+            Spacer(Modifier.height(16.dp))
+            Button(onClick = onRestore, modifier = Modifier.height(56.dp)) {
+                Text("Restore Test State", fontSize = 18.sp)
             }
         }
     }
@@ -300,6 +310,8 @@ private fun SlideshowScreen(
     onChooseLocation: (GeoPlace) -> Unit,
     onDetectLocation: () -> Unit,
     onRemoveItems: (Set<String>) -> Unit,
+    onStashState: () -> Unit,
+    onRestoreState: () -> Unit,
     gesturesEnabled: Boolean,
 ) {
     if (items.isEmpty()) {
@@ -433,6 +445,8 @@ private fun SlideshowScreen(
                 onSearchLocation = onSearchLocation,
                 onChooseLocation = onChooseLocation,
                 onDetectLocation = onDetectLocation,
+                onStashState = onStashState,
+                onRestoreState = onRestoreState,
                 onClose = { overlay = Overlay.NONE },
             )
             Overlay.MANAGE -> ManageScreen(
@@ -611,6 +625,8 @@ private fun SettingsScreen(
     onSearchLocation: (String) -> Unit,
     onChooseLocation: (GeoPlace) -> Unit,
     onDetectLocation: () -> Unit,
+    onStashState: () -> Unit,
+    onRestoreState: () -> Unit,
     onClose: () -> Unit,
 ) {
     Column(
@@ -705,6 +721,22 @@ private fun SettingsScreen(
                 onChooseLocation = onChooseLocation,
                 onDetectLocation = onDetectLocation,
             )
+
+            if (com.ramnat.portalgphotos.BuildConfig.ENABLE_DEV_TOOLS) {
+                SettingCard {
+                    Text("Developer Tools", color = Color.White, fontSize = 24.sp)
+                    Text("Testing utilities (Hidden from release without flag)", color = SubtitleColor, fontSize = 16.sp)
+                    Spacer(Modifier.height(16.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Button(onClick = onStashState, modifier = Modifier.height(56.dp)) {
+                            Text("Stash & Reset App", fontSize = 18.sp)
+                        }
+                        Button(onClick = onRestoreState, modifier = Modifier.height(56.dp)) {
+                            Text("Restore App State", fontSize = 18.sp)
+                        }
+                    }
+                }
+            }
         }
     }
 }
