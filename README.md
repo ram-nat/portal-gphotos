@@ -41,7 +41,12 @@ Run the provided deployment script. This script automatically handles installing
 
 *(Note: If you have multiple devices connected, you can specify the target device with `-s <serial>`)*
 
-**No computer with adb?** Once you have your `client_secret.json` from step 2, you can run this whole deployment from your browser with [OpenPortal](https://andronedev.github.io/openportal/apps/com.ramnat.portalgphotos), a Chromium-based web app that drives the Portal over USB with WebUSB + ADB. There's nothing to install on your machine: plug in the Portal, upload your `client_secret.json`, and OpenPortal runs the same steps `deploy.sh` does, it installs the APK, pushes the credentials, grants the settings permissions, and registers the `PhotoDreamService` screensaver. Then finish signing in on the Portal.
+**No computer with adb?** Once you have your `client_secret.json` from step 2, you can do this whole deployment from your browser with [OpenPortal](https://andronedev.github.io/openportal/apps/com.ramnat.portalgphotos), a Chromium-based web app that drives the Portal over USB with WebUSB + ADB. There's nothing to install on your machine, just plug in the Portal:
+
+1. Click **Install** to download the release APK on the device and `pm install` it.
+2. Open **Set up screensaver**, upload your `client_secret.json`, and apply. OpenPortal pushes the credentials, grants the settings permissions, registers the `PhotoDreamService` screensaver, and launches the app, the same configuration `deploy.sh` performs.
+
+Then finish signing in on the Portal.
 
 ---
 
