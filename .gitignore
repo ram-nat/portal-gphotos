@@ -17,6 +17,7 @@ local.properties
 *.keystore
 *.jks
 keystore.properties
+keystore_b64.txt
 captures/
 .cxx/
 
