@@ -58,6 +58,14 @@ Then finish signing in on the Portal.
 
 ---
 
+## 5. Bugs and Updates
+
+- If you installed before 2026-06-13 (Builds v0.1.5 and before), there's a bug where when oauth refresh token expires, there is no way to refresh it from the device. To fix this, please use `deploy.sh` to re-deploy a later build. After this, you should be able to sign-in and grant access again from the device.
+
+- Switch from Debug to Release APKs - if you are not building your own, this is a breaking change from release v0.1.3 - `deploy.sh` will handle retaining any downloaded media + client credentials automatically. However, you may lose your settings in the app and set them again.
+
+---
+
 ## Screenshots
 
 ![Setup](docs/setup_screen.png)
