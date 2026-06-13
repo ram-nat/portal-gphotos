@@ -47,6 +47,10 @@ object ScreensaverGuard {
     private const val SLEEP_ALONE_TIMEOUT_MS = 900_000 // 15 minutes
     private const val GUARD_PREFS = "screensaver_guard"
     private const val KEY_SAVED_TIMEOUT = "saved_screen_off_timeout"
+    /** True while *we* hold the sleep-when-alone timeout override. Tracks ownership
+     *  explicitly because SLEEP_ALONE_TIMEOUT_MS (15 min) is also a legitimate user choice,
+     *  so we can't tell "our override" from "the user's value" by comparing the number. */
+    private const val KEY_OVERRIDE_ACTIVE = "timeout_override_active"
 
     /**
      * Apply the screen power policy for the current mode.
@@ -65,24 +69,37 @@ object ScreensaverGuard {
         val cr = context.contentResolver
         val prefs = context.getSharedPreferences(GUARD_PREFS, Context.MODE_PRIVATE)
         try {
-            // If we are applying ANY policy, we might need to save the original timeout first.
-            if (!prefs.contains(KEY_SAVED_TIMEOUT)) {
-                val cur = Settings.System.getInt(cr, Settings.System.SCREEN_OFF_TIMEOUT, 15_000)
-                prefs.edit().putInt(KEY_SAVED_TIMEOUT, cur).apply()
-            }
+            val overrideActive = prefs.getBoolean(KEY_OVERRIDE_ACTIVE, false)
 
             when (policy) {
                 PowerPolicy.SLEEP_WHEN_ALONE -> {
                     Settings.Secure.putInt(cr, KEY_ENABLED, 0)
-                    Settings.System.putInt(cr, Settings.System.SCREEN_OFF_TIMEOUT, SLEEP_ALONE_TIMEOUT_MS)
-                    Log.i(TAG, "sleep-when-alone: screensaver off, timeout ${SLEEP_ALONE_TIMEOUT_MS}ms")
+                    // Capture the user's real timeout only on the transition INTO the override.
+                    // If we already own it, the current system value is our own sentinel — don't
+                    // re-capture it (that would poison the restore value to 15 min).
+                    if (!overrideActive) {
+                        val cur = Settings.System.getInt(cr, Settings.System.SCREEN_OFF_TIMEOUT, 15_000)
+                        prefs.edit()
+                            .putInt(KEY_SAVED_TIMEOUT, cur)
+                            .putBoolean(KEY_OVERRIDE_ACTIVE, true)
+                            .apply()
+                        Settings.System.putInt(cr, Settings.System.SCREEN_OFF_TIMEOUT, SLEEP_ALONE_TIMEOUT_MS)
+                        Log.i(TAG, "sleep-when-alone: screensaver off, timeout ${SLEEP_ALONE_TIMEOUT_MS}ms (saved ${cur}ms)")
+                    } else {
+                        Log.i(TAG, "sleep-when-alone: already active, leaving timeout as-is")
+                    }
                 }
                 PowerPolicy.AWAKE_FOREVER -> {
                     Settings.Secure.putInt(cr, KEY_ENABLED, 1)
-                    val saved = prefs.getInt(KEY_SAVED_TIMEOUT, 15_000)
-                    Settings.System.putInt(cr, Settings.System.SCREEN_OFF_TIMEOUT, saved)
+                    // Only restore if WE installed the override. Otherwise leave whatever the
+                    // user has chosen — don't clobber a manually-picked timeout.
+                    if (overrideActive) {
+                        val saved = prefs.getInt(KEY_SAVED_TIMEOUT, 15_000)
+                        Settings.System.putInt(cr, Settings.System.SCREEN_OFF_TIMEOUT, saved)
+                        prefs.edit().putBoolean(KEY_OVERRIDE_ACTIVE, false).apply()
+                        Log.i(TAG, "awake-forever: screensaver on, timeout restored to ${saved}ms")
+                    }
                     applyNow(context) // re-assert our screensaver component
-                    Log.i(TAG, "awake-forever: screensaver on, timeout restored to ${saved}ms")
                 }
             }
         } catch (e: SecurityException) {
