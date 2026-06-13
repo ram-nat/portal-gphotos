@@ -15,6 +15,13 @@ import java.io.IOException
  * pushed via adb) and exchanges the refresh token for short-lived access tokens.
  * Pure OkHttp + org.json — no Google/GMS libraries.
  */
+/**
+ * Thrown when the stored refresh token is permanently invalid (expired or revoked —
+ * Google returns `invalid_grant`). A retry of the same refresh can never succeed; the
+ * user must re-authenticate. The dead token is cleared before this is thrown.
+ */
+class RefreshTokenInvalidException(message: String) : IOException(message)
+
 class TokenStore(context: Context, private val configFile: File, private val http: OkHttpClient) {
 
     data class Config(
@@ -78,6 +85,16 @@ class TokenStore(context: Context, private val configFile: File, private val htt
             .apply()
     }
 
+    /**
+     * Drop the dead refresh token (keep the client creds so on-device re-auth still works).
+     * After this, [config] returns null, so the app routes to the sign-in screen.
+     */
+    fun clearRefreshToken() {
+        cachedToken = null
+        expiresAtMs = 0L
+        prefs.edit().remove("refresh_token").apply()
+    }
+
     @Synchronized
     @Throws(IOException::class)
     fun accessToken(): String {
@@ -93,7 +110,16 @@ class TokenStore(context: Context, private val configFile: File, private val htt
         val req = Request.Builder().url(cfg.tokenUri).post(form).build()
         http.newCall(req).execute().use { resp ->
             val body = resp.body?.string().orEmpty()
-            if (!resp.isSuccessful) throw IOException("Token refresh failed ${resp.code}: $body")
+            if (!resp.isSuccessful) {
+                val err = runCatching { JSONObject(body).optString("error") }.getOrNull()
+                if (err == "invalid_grant") {
+                    clearRefreshToken()
+                    throw RefreshTokenInvalidException(
+                        "Your Google sign-in expired or was revoked. Sign in again."
+                    )
+                }
+                throw IOException("Token refresh failed ${resp.code}: $body")
+            }
             val o = JSONObject(body)
             val token = o.getString("access_token")
             val ttl = o.optLong("expires_in", 3600L)

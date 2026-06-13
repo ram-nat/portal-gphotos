@@ -22,6 +22,7 @@ import com.ramnat.portalgphotos.data.PickerClient
 import com.ramnat.portalgphotos.data.SettingsState
 import com.ramnat.portalgphotos.data.SlideEffect
 import com.ramnat.portalgphotos.data.TokenStore
+import com.ramnat.portalgphotos.data.RefreshTokenInvalidException
 import com.ramnat.portalgphotos.data.GeoPlace
 import com.ramnat.portalgphotos.data.WeatherClient
 import com.ramnat.portalgphotos.data.WeatherNow
@@ -42,7 +43,7 @@ import kotlinx.coroutines.Job
 
 sealed interface UiState {
     data object Loading : UiState
-    data class NeedsSetup(val message: String, val canSignIn: Boolean) : UiState
+    data class NeedsSetup(val message: String, val canSignIn: Boolean, val canCancel: Boolean = false) : UiState
     data class SigningIn(val authUri: String) : UiState
     data class Picking(val qr: ImageBitmap, val pickerUri: String, val status: String) : UiState
     data class Downloading(val done: Int, val total: Int) : UiState
@@ -209,21 +210,38 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Decide where to land: setup needed, resume a pending pick, show cached, or pick. */
+    /**
+     * Build the setup/sign-in state. [reason] prefixes the message when we're here because
+     * something failed (e.g. an expired token) rather than a clean first-run setup.
+     */
+    private fun needsSetupState(reason: String? = null): UiState.NeedsSetup {
+        val pkg = getApplication<Application>().packageName
+        // Allow deferring sign-in only when there's an existing slideshow to fall back to.
+        val canCancel = runCatching { cache.load().isNotEmpty() }.getOrDefault(false)
+        return if (auth.isConfigured()) {
+            UiState.NeedsSetup(
+                message = reason ?: "Sign in to your Google account to choose photos.",
+                canSignIn = true,
+                canCancel = canCancel,
+            )
+        } else {
+            UiState.NeedsSetup(
+                message = (reason?.let { "$it\n\n" } ?: "") +
+                    "Push your OAuth client to enable sign-in, then tap Retry:\n\n" +
+                    "adb push client_secret.json /sdcard/Android/data/$pkg/files/client_secret.json\n\n" +
+                    "(Or push a pre-made token.json to the same folder.)",
+                canSignIn = false,
+                canCancel = canCancel,
+            )
+        }
+    }
+
     fun start() {
         pickerJob?.cancel()
         pickerJob = viewModelScope.launch {
             _state.value = UiState.Loading
             if (tokens.config() == null) {
-                val pkg = getApplication<Application>().packageName
-                _state.value = UiState.NeedsSetup(
-                    message = if (auth.isConfigured())
-                        "Sign in to your Google account to choose photos."
-                    else
-                        "Push your OAuth client to enable sign-in, then tap Retry:\n\n" +
-                            "adb push client_secret.json /sdcard/Android/data/$pkg/files/client_secret.json\n\n" +
-                            "(Or push a pre-made token.json to the same folder.)",
-                    canSignIn = auth.isConfigured(),
-                )
+                _state.value = needsSetupState()
                 return@launch
             }
             // If a pick was in progress (e.g. we went to the browser and got killed),
@@ -312,6 +330,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun runPicker(replace: Boolean) {
         try {
             _state.value = UiState.Loading
+            // No token (e.g. it was just cleared after an expiry) — route to sign-in instead
+            // of letting createSession fail with a low-level "missing token" error.
+            if (tokens.config() == null) {
+                _state.value = needsSetupState()
+                return
+            }
             val session = withContext(Dispatchers.IO) { picker.createSession() }
             val deadline = System.currentTimeMillis() + session.timeoutMs
             savePending(session.id, replace, deadline)
@@ -321,6 +345,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 status = "Waiting for your selection in Google Photos…",
             )
             consumeSession(session.id, replace, deadline)
+        } catch (e: RefreshTokenInvalidException) {
+            // Refresh token is dead — a retry can't help. Route to sign-in instead of a
+            // dead-end error so the user can re-authenticate on the device.
+            clearPending()
+            _state.value = needsSetupState(e.message)
         } catch (e: Exception) {
             clearPending()
             _state.value = UiState.Error(e.message ?: "Something went wrong")
@@ -377,6 +406,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             withContext(Dispatchers.IO) { cache.replaceAll(finalItems) }
             clearPending()
             _state.value = UiState.Showing(finalItems)
+        } catch (e: RefreshTokenInvalidException) {
+            // Refresh token is dead — a retry can't help. Route to sign-in instead of a
+            // dead-end error so the user can re-authenticate on the device.
+            clearPending()
+            _state.value = needsSetupState(e.message)
         } catch (e: Exception) {
             clearPending()
             _state.value = UiState.Error(e.message ?: "Something went wrong")

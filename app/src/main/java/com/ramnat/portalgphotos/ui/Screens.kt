@@ -138,7 +138,8 @@ fun AppRoot(
     Surface(modifier = Modifier.fillMaxSize(), color = Color.Black) {
         when (state) {
             is UiState.Loading -> CenterMessage("Loading…")
-            is UiState.NeedsSetup -> SetupScreen(state.message, state.canSignIn, onSignIn, onRetry, onRestoreState)
+            is UiState.NeedsSetup -> SetupScreen(state.message, state.canSignIn, onSignIn, onRetry,
+                onCancel = if (state.canCancel) onCancel else null, onRestore = onRestoreState)
             is UiState.SigningIn -> CenterMessage("Opening sign-in…\nApprove access, then return to this app.")
             is UiState.Picking -> PickingScreen(state.qr, state.pickerUri, state.status, onCancel)
             is UiState.Downloading ->
@@ -184,7 +185,7 @@ private fun CenterMessage(text: String) {
 }
 
 @Composable
-private fun SetupScreen(message: String, canSignIn: Boolean, onSignIn: () -> Unit, onRetry: () -> Unit, onRestore: (() -> Unit)? = null) {
+private fun SetupScreen(message: String, canSignIn: Boolean, onSignIn: () -> Unit, onRetry: () -> Unit, onCancel: (() -> Unit)? = null, onRestore: (() -> Unit)? = null) {
     Column(
         Modifier.fillMaxSize().padding(top = 64.dp, start = 48.dp, end = 48.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -201,6 +202,14 @@ private fun SetupScreen(message: String, canSignIn: Boolean, onSignIn: () -> Uni
         } else {
             Button(onClick = onRetry, modifier = Modifier.height(72.dp)) {
                 Text("Retry", fontSize = 24.sp)
+            }
+        }
+        // Let the user defer sign-in and return to the existing slideshow (only offered
+        // when there's a cached set to fall back to).
+        if (onCancel != null) {
+            Spacer(Modifier.height(16.dp))
+            TextButton(onClick = onCancel, modifier = Modifier.height(64.dp)) {
+                Text("Not now", color = Color.LightGray, fontSize = 20.sp)
             }
         }
         if (com.ramnat.portalgphotos.BuildConfig.ENABLE_DEV_TOOLS && onRestore != null) {
