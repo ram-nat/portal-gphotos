@@ -6,6 +6,10 @@
 # Idempotent: safe to re-run. Everything but the APK is optional, so this also
 # works as a "reconfigure permissions/screensaver" pass on an already-installed app.
 #
+# Non-destructive: a debug<->release switch changes the signing key, which forces an
+# uninstall+install. We preserve the downloaded media + OAuth token across that by
+# stashing the app's files dir on /sdcard and moving it back after the fresh install.
+#
 # Usage:
 #   scripts/deploy.sh [-s SERIAL] [--apk PATH] [--client client_secret.json]
 #                     [--token token.json] [--build]
@@ -80,9 +84,38 @@ if [[ $DO_BUILD -eq 1 ]]; then
 fi
 [[ -f "$APK" ]] || { echo "APK not found: $APK (download it, or run with --build)" >&2; exit 1; }
 
-# --- install ---
+# --- install (non-destructive across debug<->release signature changes) ---
+# `adb install -r` fails when the new APK's signing key differs from the installed
+# one (debug vs release), and the only way through is uninstall+install — which
+# normally wipes the app's external files, losing all downloaded media + the token.
+# So on a signature mismatch we move the files dir to a top-level /sdcard backup
+# (outside the app dir, so uninstall can't touch it; a rename on the same fs, instant),
+# reinstall fresh, then move it back. A plain in-place update keeps data and skips all this.
 echo ">> install $APK"
-adb install -r "$APK" >/dev/null && echo "   ok"
+install_out="$(adb install -r "$APK" 2>&1 || true)"
+if grep -q "Success" <<<"$install_out"; then
+  echo "   ok (in-place update, data preserved)"
+elif grep -qiE "INSTALL_FAILED_UPDATE_INCOMPATIBLE|signatures do not match" <<<"$install_out"; then
+  echo "   signature mismatch (debug<->release) — preserving media + token across reinstall"
+  BAK="/sdcard/portal-gphotos-deploy.bak"
+  adb shell "rm -rf '$BAK'"
+  if adb shell "test -d '$FILES_DIR'"; then
+    adb shell "mv '$FILES_DIR' '$BAK'" && echo "   backed up app files -> $BAK"
+    HAVE_BAK=1
+  else
+    HAVE_BAK=0
+  fi
+  adb uninstall "$PKG" >/dev/null && echo "   uninstalled old build"
+  adb install "$APK" >/dev/null && echo "   installed fresh"
+  if [[ "${HAVE_BAK:-0}" -eq 1 ]]; then
+    adb shell "mkdir -p '$(dirname "$FILES_DIR")' && rm -rf '$FILES_DIR' && mv '$BAK' '$FILES_DIR'" \
+      && echo "   restored app files (media + token)"
+  fi
+else
+  echo "   install failed:" >&2
+  echo "$install_out" >&2
+  exit 1
+fi
 
 # --- push config ---
 adb shell mkdir -p "$FILES_DIR"
