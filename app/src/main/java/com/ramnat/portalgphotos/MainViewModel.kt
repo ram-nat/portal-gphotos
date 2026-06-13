@@ -94,6 +94,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private var pickerJob: Job? = null
 
+    // If a pick (add or replace) hit an expired/revoked token and routed the user to
+    // sign-in, this remembers which pick to resume after a successful re-auth. In-memory
+    // only: a process death on the sign-in screen falls back to the slideshow (nothing was
+    // created server-side, so nothing is lost). Consumed by signIn(); cleared by cancelPicker().
+    private var resumePickerReplace: Boolean? = null
+
     private val _powerPolicy = MutableStateFlow(PowerPolicy.AWAKE_FOREVER)
     val powerPolicy: StateFlow<PowerPolicy> = _powerPolicy.asStateFlow()
 
@@ -295,8 +301,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
                 }
                 ctx.startActivity(intent)
-                
-                start()
+
+                // If sign-in was triggered by an Add/Replace that hit an expired token,
+                // resume that pick (fresh session → QR/pick screen with Cancel). Otherwise
+                // resume normal startup. addPhotos/replacePhotos own pickerJob, keeping
+                // cancellation correct.
+                val resume = resumePickerReplace
+                resumePickerReplace = null
+                when (resume) {
+                    true -> replacePhotos()
+                    false -> addPhotos()
+                    null -> start()
+                }
             } catch (e: Exception) {
                 _state.value = UiState.Error(e.message ?: "Sign-in failed")
             }
@@ -320,6 +336,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         pickerJob?.cancel()
         pickerJob = null
         clearPending()
+        resumePickerReplace = null // user deferred ("Not now"/Cancel) — don't auto-resume later
         viewModelScope.launch {
             val cached = withContext(Dispatchers.IO) { cache.load() }
             if (cached.isNotEmpty()) _state.value = UiState.Showing(cached)
@@ -331,8 +348,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         try {
             _state.value = UiState.Loading
             // No token (e.g. it was just cleared after an expiry) — route to sign-in instead
-            // of letting createSession fail with a low-level "missing token" error.
+            // of letting createSession fail with a low-level "missing token" error. Remember
+            // the pick so a successful sign-in resumes it (not just the catch path below —
+            // a second Add/Replace after the token was already cleared lands here).
             if (tokens.config() == null) {
+                resumePickerReplace = replace
                 _state.value = needsSetupState()
                 return
             }
@@ -347,7 +367,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             consumeSession(session.id, replace, deadline)
         } catch (e: RefreshTokenInvalidException) {
             // Refresh token is dead — a retry can't help. Route to sign-in instead of a
-            // dead-end error so the user can re-authenticate on the device.
+            // dead-end error so the user can re-authenticate on the device, and remember this
+            // pick so a successful sign-in resumes it (fresh session) rather than dropping to
+            // the slideshow.
+            resumePickerReplace = replace
             clearPending()
             _state.value = needsSetupState(e.message)
         } catch (e: Exception) {
@@ -408,7 +431,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             _state.value = UiState.Showing(finalItems)
         } catch (e: RefreshTokenInvalidException) {
             // Refresh token is dead — a retry can't help. Route to sign-in instead of a
-            // dead-end error so the user can re-authenticate on the device.
+            // dead-end error so the user can re-authenticate on the device, and remember this
+            // pick so a successful sign-in resumes it (fresh session) rather than dropping to
+            // the slideshow.
+            resumePickerReplace = replace
             clearPending()
             _state.value = needsSetupState(e.message)
         } catch (e: Exception) {
