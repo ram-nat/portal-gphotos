@@ -27,17 +27,25 @@ class MainActivity : ComponentActivity() {
             val settings by vm.settingsState.collectAsStateWithLifecycle()
             val powerPolicy by vm.powerPolicy.collectAsStateWithLifecycle()
             LaunchedEffect(powerPolicy) {
-                // Determine if we should hold the screen awake. We only hold it if we want AWAKE_FOREVER.
-                // Otherwise, we clear the flag and let the OS handle the screen timeout based on the policy.
                 if (powerPolicy == PowerPolicy.AWAKE_FOREVER) {
                     window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    ScreensaverGuard.applyPowerPolicy(this@MainActivity, powerPolicy)
                 } else {
+                    // SLEEP_WHEN_ALONE
+                    // 1. Grab the keep-screen-on flag temporarily to survive the Dream finishing
+                    //    without the OS instantly turning the screen off.
+                    window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    
+                    // 2. Apply the 15-minute timeout and disable the system screensaver.
+                    ScreensaverGuard.applyPowerPolicy(this@MainActivity, powerPolicy)
+                    
+                    // 3. Wait for the Dream transition to fully settle.
+                    kotlinx.coroutines.delay(2000)
+                    
+                    // 4. Drop the flag. This forces Android's PowerManager to recalculate
+                    //    the idle timer, picking up our new 15-minute timeout for a fresh countdown!
                     window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                 }
-                ScreensaverGuard.applyPowerPolicy(
-                    this@MainActivity,
-                    powerPolicy
-                )
             }
             val weather by vm.weatherState.collectAsStateWithLifecycle()
             val geoStatus by vm.geoStatus.collectAsStateWithLifecycle()
@@ -121,6 +129,8 @@ class MainActivity : ComponentActivity() {
         super.onStop()
         // Re-enable the screensaver when the app goes to the background.
         // This ensures the Portal's launcher "Photos" button continues to work!
-        ScreensaverGuard.applyPowerPolicy(this, PowerPolicy.AWAKE_FOREVER)
+        if (!isChangingConfigurations) {
+            ScreensaverGuard.applyPowerPolicy(this, PowerPolicy.AWAKE_FOREVER)
+        }
     }
 }
