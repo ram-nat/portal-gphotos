@@ -1100,6 +1100,9 @@ private fun VideoPlayer(file: File, playing: Boolean, muted: Boolean, onEnded: (
                     resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
                 }
             },
+            update = { view ->
+                view.player = player
+            },
             modifier = Modifier.fillMaxSize(),
         )
         IconButton(
