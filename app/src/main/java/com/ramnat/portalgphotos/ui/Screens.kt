@@ -1084,6 +1084,10 @@ private fun VideoPlayer(file: File, playing: Boolean, muted: Boolean, onEnded: (
             override fun onPlaybackStateChanged(state: Int) {
                 if (state == Player.STATE_ENDED) onEnded()
             }
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                android.util.Log.w("VideoPlayer", "ExoPlayer failed, skipping: ${error.message}")
+                onEnded()
+            }
         }
         player.addListener(listener)
         onDispose {
