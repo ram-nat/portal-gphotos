@@ -1068,14 +1068,30 @@ private fun KenBurnsImage(file: File) {
 @Composable
 private fun VideoPlayer(file: File, playing: Boolean, muted: Boolean, onEnded: () -> Unit) {
     var isMuted by remember(muted) { mutableStateOf(muted) }
+    var firstFrameRendered by remember(file) { mutableStateOf(false) }
     val context = LocalContext.current
     val player = remember(file) {
-        ExoPlayer.Builder(context).build().apply {
+        val renderersFactory = androidx.media3.exoplayer.DefaultRenderersFactory(context)
+            .setEnableDecoderFallback(true)
+            
+        ExoPlayer.Builder(context, renderersFactory).build().apply {
+            addAnalyticsListener(androidx.media3.exoplayer.util.EventLogger())
             setMediaItem(MediaItem.fromUri(Uri.fromFile(file)))
             playWhenReady = true
             prepare()
         }
     }
+    
+    // Safety fallback: if the hardware decoder hangs on an unsupported cinematic photo format
+    // it won't crash, but it will never render a frame. Skip it if it's stuck for 8 seconds.
+    LaunchedEffect(file) {
+        kotlinx.coroutines.delay(8000)
+        if (!firstFrameRendered) {
+            android.util.Log.w("VideoPlayer", "ExoPlayer failed to render first frame within 8s. Skipping.")
+            onEnded()
+        }
+    }
+
     // Pause playback when an overlay covers the slideshow (so audio stops under a submenu).
     LaunchedEffect(playing) { player.playWhenReady = playing }
     LaunchedEffect(isMuted) { player.volume = if (isMuted) 0f else 1f }
@@ -1087,6 +1103,9 @@ private fun VideoPlayer(file: File, playing: Boolean, muted: Boolean, onEnded: (
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                 android.util.Log.w("VideoPlayer", "ExoPlayer failed, skipping: ${error.message}")
                 onEnded()
+            }
+            override fun onRenderedFirstFrame() {
+                firstFrameRendered = true
             }
         }
         player.addListener(listener)
