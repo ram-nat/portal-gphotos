@@ -127,6 +127,7 @@ fun AppRoot(
     onSetShowWeather: (Boolean) -> Unit,
     onSetBackgroundStyle: (com.ramnat.portalgphotos.data.BackgroundStyle) -> Unit,
     onSetSleepWhenAlone: (Boolean) -> Unit,
+    onSetTapToDismiss: (Boolean) -> Unit,
     onSearchLocation: (String) -> Unit,
     onChooseLocation: (GeoPlace) -> Unit,
     onDetectLocation: () -> Unit,
@@ -161,6 +162,7 @@ fun AppRoot(
                 onSetShowWeather = onSetShowWeather,
                 onSetBackgroundStyle = onSetBackgroundStyle,
                 onSetSleepWhenAlone = onSetSleepWhenAlone,
+                onSetTapToDismiss = onSetTapToDismiss,
                 onSearchLocation = onSearchLocation,
                 onChooseLocation = onChooseLocation,
                 onDetectLocation = onDetectLocation,
@@ -315,6 +317,7 @@ private fun SlideshowScreen(
     onSetShowWeather: (Boolean) -> Unit,
     onSetBackgroundStyle: (com.ramnat.portalgphotos.data.BackgroundStyle) -> Unit,
     onSetSleepWhenAlone: (Boolean) -> Unit,
+    onSetTapToDismiss: (Boolean) -> Unit,
     onSearchLocation: (String) -> Unit,
     onChooseLocation: (GeoPlace) -> Unit,
     onDetectLocation: () -> Unit,
@@ -328,6 +331,7 @@ private fun SlideshowScreen(
         return
     }
     var overlay by remember { mutableStateOf(Overlay.NONE) }
+    val context = LocalContext.current
     // Play order is a list of item ids (resilient to the set changing under us); `currentId`
     // is the item on screen. Tracking ids, not indices, keeps the current photo pinned when
     // the set or shuffle changes.
@@ -369,7 +373,15 @@ private fun SlideshowScreen(
             detectTapGestures(
                 onLongPress = { if (interactive) overlay = Overlay.MENU },
                 // Tap left half = previous, right half = next. No on-screen controls.
-                onTap = { offset -> if (interactive) { if (offset.x < size.width / 2f) advance(-1) else advance(1) } },
+                onTap = { offset ->
+                    if (interactive) {
+                        if (settings.tapToDismiss) {
+                            (context as? android.app.Activity)?.finish()
+                        } else {
+                            if (offset.x < size.width / 2f) advance(-1) else advance(1)
+                        }
+                    }
+                },
             )
         }
         .pointerInput(items.size) {
@@ -454,6 +466,7 @@ private fun SlideshowScreen(
                 onSetShowWeather = onSetShowWeather,
                 onSetBackgroundStyle = onSetBackgroundStyle,
                 onSetSleepWhenAlone = onSetSleepWhenAlone,
+                onSetTapToDismiss = onSetTapToDismiss,
                 onSearchLocation = onSearchLocation,
                 onChooseLocation = onChooseLocation,
                 onDetectLocation = onDetectLocation,
@@ -634,6 +647,7 @@ private fun SettingsScreen(
     onSetShowWeather: (Boolean) -> Unit,
     onSetBackgroundStyle: (com.ramnat.portalgphotos.data.BackgroundStyle) -> Unit,
     onSetSleepWhenAlone: (Boolean) -> Unit,
+    onSetTapToDismiss: (Boolean) -> Unit,
     onSearchLocation: (String) -> Unit,
     onChooseLocation: (GeoPlace) -> Unit,
     onDetectLocation: () -> Unit,
@@ -668,6 +682,7 @@ private fun SettingsScreen(
             }
 
             ToggleCard("Shuffle", "Play photos in random order", settings.shuffle, onSetShuffle)
+            ToggleCard("Tap to dismiss", "Tapping the screen closes the app", settings.tapToDismiss, onSetTapToDismiss)
 
             SettingCard {
                 Text("Slide interval", color = Color.White, fontSize = 24.sp)

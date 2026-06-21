@@ -27,6 +27,7 @@ data class SettingsState(
     // room lets it sleep. Off = a permanent always-on frame.
     val sleepWhenAlone: Boolean = false,
     val backgroundStyle: BackgroundStyle = BackgroundStyle.BLUR,
+    val tapToDismiss: Boolean = true,
 )
 
 /** Thin typed wrapper over SharedPreferences. The single home for app settings. */
@@ -54,6 +55,7 @@ class AppSettings(context: Context) {
             backgroundStyle = runCatching {
                 BackgroundStyle.valueOf(prefs.getString(KEY_BG_STYLE, null) ?: BackgroundStyle.BLUR.name)
             }.getOrDefault(BackgroundStyle.BLUR),
+            tapToDismiss = prefs.getBoolean(KEY_TAP_DISMISS, true),
         )
     }
 
@@ -66,6 +68,7 @@ class AppSettings(context: Context) {
     fun setShowWeather(v: Boolean) = prefs.edit().putBoolean(KEY_WEATHER, v).apply()
     fun setSleepWhenAlone(v: Boolean) = prefs.edit().putBoolean(KEY_SLEEP_ALONE, v).apply()
     fun setBackgroundStyle(v: BackgroundStyle) = prefs.edit().putString(KEY_BG_STYLE, v.name).apply()
+    fun setTapToDismiss(v: Boolean) = prefs.edit().putBoolean(KEY_TAP_DISMISS, v).apply()
     fun setWeatherLocation(lat: Double, lon: Double, label: String) =
         prefs.edit()
             .putFloat(KEY_LAT, lat.toFloat())
@@ -86,5 +89,6 @@ class AppSettings(context: Context) {
         const val KEY_LON = "weather_lon"
         const val KEY_PLACE = "weather_place"
         const val KEY_BG_STYLE = "bg_style"
+        const val KEY_TAP_DISMISS = "tap_to_dismiss"
     }
 }

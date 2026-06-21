@@ -64,6 +64,7 @@ class MainActivity : ComponentActivity() {
                 onSetShowWeather = vm::setShowWeather,
                 onSetBackgroundStyle = vm::setBackgroundStyle,
                 onSetSleepWhenAlone = vm::setSleepWhenAlone,
+                onSetTapToDismiss = vm::setTapToDismiss,
                 onSearchLocation = vm::searchLocation,
                 onChooseLocation = vm::chooseLocation,
                 onDetectLocation = {
