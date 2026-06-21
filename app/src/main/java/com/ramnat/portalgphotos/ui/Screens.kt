@@ -1149,10 +1149,10 @@ private fun VideoPlayer(file: File, playing: Boolean, muted: Boolean, onEnded: (
     Box(Modifier.fillMaxSize()) {
         AndroidView(
             factory = { ctx ->
-                val view = android.view.LayoutInflater.from(ctx)
-                    .inflate(com.ramnat.portalgphotos.R.layout.video_player_view, null) as androidx.media3.ui.PlayerView
-                view.apply {
+                PlayerView(ctx).apply {
                     this.player = player
+                    useController = false
+                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
                 }
             },
             update = { view ->
