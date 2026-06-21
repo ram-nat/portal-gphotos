@@ -361,7 +361,7 @@ private fun SlideshowScreen(
         val oldId = currentId
         pos = p
         currentId = order.getOrElse(p) { order.first() }
-        android.util.Log.d("SlideshowScreen", "advance(step=$step): pos $oldPos -> $pos, id $oldId -> $currentId")
+        android.util.Log.i("SlideshowScreen", "advance(step=$step): pos $oldPos -> $pos, id $oldId -> $currentId")
     }
 
     val interactive = overlay == Overlay.NONE
@@ -1085,12 +1085,12 @@ private fun KenBurnsImage(file: File) {
 @OptIn(UnstableApi::class)
 @Composable
 private fun VideoPlayer(file: File, playing: Boolean, muted: Boolean, onEnded: () -> Unit) {
-    android.util.Log.d("VideoPlayer", "Composing VideoPlayer for file: ${file.name}, playing=$playing")
+    android.util.Log.i("VideoPlayer", "Composing VideoPlayer for file: ${file.name}, playing=$playing")
     var isMuted by remember(muted) { mutableStateOf(muted) }
     var firstFrameRendered by remember(file) { mutableStateOf(false) }
     val context = LocalContext.current
     val player = remember(file) {
-        android.util.Log.d("VideoPlayer", "remember(file): Building ExoPlayer for file: ${file.name}")
+        android.util.Log.i("VideoPlayer", "remember(file): Building ExoPlayer for file: ${file.name}")
         val renderersFactory = androidx.media3.exoplayer.DefaultRenderersFactory(context)
             .setEnableDecoderFallback(true)
             
@@ -1108,40 +1108,40 @@ private fun VideoPlayer(file: File, playing: Boolean, muted: Boolean, onEnded: (
         kotlinx.coroutines.delay(8000)
         if (!firstFrameRendered) {
             android.util.Log.w("VideoPlayer", "ExoPlayer failed to render first frame within 8s. Skipping.")
-            android.util.Log.d("VideoPlayer", "8s fallback calling onEnded()")
+            android.util.Log.i("VideoPlayer", "8s fallback calling onEnded()")
             onEnded()
         }
     }
 
     // Pause playback when an overlay covers the slideshow (so audio stops under a submenu).
     LaunchedEffect(playing) { 
-        android.util.Log.d("VideoPlayer", "LaunchedEffect(playing): setting playWhenReady=$playing")
+        android.util.Log.i("VideoPlayer", "LaunchedEffect(playing): setting playWhenReady=$playing")
         player.playWhenReady = playing 
     }
     LaunchedEffect(isMuted) { player.volume = if (isMuted) 0f else 1f }
     DisposableEffect(file) {
-        android.util.Log.d("VideoPlayer", "DisposableEffect entered for file: ${file.name}")
+        android.util.Log.i("VideoPlayer", "DisposableEffect entered for file: ${file.name}")
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
-                android.util.Log.d("VideoPlayer", "onPlaybackStateChanged: state=$state")
+                android.util.Log.i("VideoPlayer", "onPlaybackStateChanged: state=$state")
                 if (state == Player.STATE_ENDED) {
-                    android.util.Log.d("VideoPlayer", "Playback ended naturally. Calling onEnded().")
+                    android.util.Log.i("VideoPlayer", "Playback ended naturally. Calling onEnded().")
                     onEnded()
                 }
             }
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                 android.util.Log.w("VideoPlayer", "ExoPlayer failed, skipping: ${error.message}")
-                android.util.Log.d("VideoPlayer", "onPlayerError calling onEnded()")
+                android.util.Log.i("VideoPlayer", "onPlayerError calling onEnded()")
                 onEnded()
             }
             override fun onRenderedFirstFrame() {
-                android.util.Log.d("VideoPlayer", "onRenderedFirstFrame")
+                android.util.Log.i("VideoPlayer", "onRenderedFirstFrame")
                 firstFrameRendered = true
             }
         }
         player.addListener(listener)
         onDispose {
-            android.util.Log.d("VideoPlayer", "DisposableEffect onDispose for file: ${file.name}. Releasing player.")
+            android.util.Log.i("VideoPlayer", "DisposableEffect onDispose for file: ${file.name}. Releasing player.")
             player.removeListener(listener)
             player.release()
         }
