@@ -47,6 +47,15 @@ object ScreensaverGuard {
     private const val SLEEP_ALONE_TIMEOUT_MS = 900_000 // 15 minutes
     private const val GUARD_PREFS = "screensaver_guard"
     private const val KEY_SAVED_TIMEOUT = "saved_screen_off_timeout"
+    private const val KEY_SAVED_SLEEP_TIMEOUT = "saved_sleep_timeout"
+    private const val KEY_SAVED_SLEEP_TIMEOUT_CHARGING = "saved_sleep_timeout_charging"
+    private const val KEY_SAVED_SLEEP_TIMEOUT_DISCHARGING = "saved_sleep_timeout_discharging"
+
+    // Custom Aloha OS keys
+    private const val KEY_SLEEP_TIMEOUT = "sleep_timeout"
+    private const val KEY_SLEEP_TIMEOUT_CHARGING = "sleep_timeout_charging"
+    private const val KEY_SLEEP_TIMEOUT_DISCHARGING = "sleep_timeout_discharging"
+
     /** True while *we* hold the sleep-when-alone timeout override. Tracks ownership
      *  explicitly because SLEEP_ALONE_TIMEOUT_MS (15 min) is also a legitimate user choice,
      *  so we can't tell "our override" from "the user's value" by comparing the number. */
@@ -79,11 +88,21 @@ object ScreensaverGuard {
                     // re-capture it (that would poison the restore value to 15 min).
                     if (!overrideActive) {
                         val cur = Settings.System.getInt(cr, Settings.System.SCREEN_OFF_TIMEOUT, 15_000)
+                        val curSleep = Settings.Secure.getInt(cr, KEY_SLEEP_TIMEOUT, -1)
+                        val curSleepCharging = Settings.Secure.getInt(cr, KEY_SLEEP_TIMEOUT_CHARGING, -1)
+                        val curSleepDischarging = Settings.Secure.getInt(cr, KEY_SLEEP_TIMEOUT_DISCHARGING, -1)
+
                         prefs.edit()
                             .putInt(KEY_SAVED_TIMEOUT, cur)
+                            .putInt(KEY_SAVED_SLEEP_TIMEOUT, curSleep)
+                            .putInt(KEY_SAVED_SLEEP_TIMEOUT_CHARGING, curSleepCharging)
+                            .putInt(KEY_SAVED_SLEEP_TIMEOUT_DISCHARGING, curSleepDischarging)
                             .putBoolean(KEY_OVERRIDE_ACTIVE, true)
                             .apply()
                         Settings.System.putInt(cr, Settings.System.SCREEN_OFF_TIMEOUT, SLEEP_ALONE_TIMEOUT_MS)
+                        Settings.Secure.putInt(cr, KEY_SLEEP_TIMEOUT, -1)
+                        Settings.Secure.putInt(cr, KEY_SLEEP_TIMEOUT_CHARGING, -1)
+                        Settings.Secure.putInt(cr, KEY_SLEEP_TIMEOUT_DISCHARGING, -1)
                         Log.i(TAG, "sleep-when-alone: screensaver off, timeout ${SLEEP_ALONE_TIMEOUT_MS}ms (saved ${cur}ms)")
                     } else {
                         Log.i(TAG, "sleep-when-alone: already active, leaving timeout as-is")
@@ -95,7 +114,15 @@ object ScreensaverGuard {
                     // user has chosen — don't clobber a manually-picked timeout.
                     if (overrideActive) {
                         val saved = prefs.getInt(KEY_SAVED_TIMEOUT, 15_000)
+                        val savedSleep = prefs.getInt(KEY_SAVED_SLEEP_TIMEOUT, -1)
+                        val savedSleepCharging = prefs.getInt(KEY_SAVED_SLEEP_TIMEOUT_CHARGING, -1)
+                        val savedSleepDischarging = prefs.getInt(KEY_SAVED_SLEEP_TIMEOUT_DISCHARGING, -1)
+
                         Settings.System.putInt(cr, Settings.System.SCREEN_OFF_TIMEOUT, saved)
+                        Settings.Secure.putInt(cr, KEY_SLEEP_TIMEOUT, savedSleep)
+                        Settings.Secure.putInt(cr, KEY_SLEEP_TIMEOUT_CHARGING, savedSleepCharging)
+                        Settings.Secure.putInt(cr, KEY_SLEEP_TIMEOUT_DISCHARGING, savedSleepDischarging)
+                        
                         prefs.edit().putBoolean(KEY_OVERRIDE_ACTIVE, false).apply()
                         Log.i(TAG, "awake-forever: screensaver on, timeout restored to ${saved}ms")
                     }
