@@ -6,7 +6,7 @@ secrets/
 
 # AI maintainer notes — kept local, not published
 /CLAUDE.md
-aloha_timeout_behavior.md
+notes/
 docs/
 logs/
 
