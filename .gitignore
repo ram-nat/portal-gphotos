@@ -8,6 +8,7 @@ secrets/
 /CLAUDE.md
 aloha_timeout_behavior.md
 docs/
+logs/
 
 # Android / Gradle
 .gradle/
@@ -38,3 +39,4 @@ dist/
 *.swp
 screenshots/
 .vscode/
+device_settings_research.md
