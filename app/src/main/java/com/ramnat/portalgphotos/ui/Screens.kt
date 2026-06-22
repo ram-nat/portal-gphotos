@@ -57,6 +57,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -332,6 +333,34 @@ private fun SlideshowScreen(
     }
     var overlay by remember { mutableStateOf(Overlay.NONE) }
     val context = LocalContext.current
+    // Tracks whether the panel is lit. The slideshow must NOT advance while the screen is off
+    // (deep sleep): otherwise it walks through the playlist in the dark, and if it parks on a
+    // video that video crosses sleep with a dead surface and wakes black + wedged (can't fire
+    // onEnded, so the slideshow never advances again). This one flag gates advancing AND, via
+    // a key() on the video, forces a fresh player+surface to be built on wake.
+    var screenOn by remember { mutableStateOf(true) }
+    DisposableEffect(context) {
+        val displayManager = context.getSystemService(android.hardware.display.DisplayManager::class.java)
+        val listener = object : android.hardware.display.DisplayManager.DisplayListener {
+            override fun onDisplayAdded(displayId: Int) {}
+            override fun onDisplayRemoved(displayId: Int) {}
+            override fun onDisplayChanged(displayId: Int) {
+                if (displayId == android.view.Display.DEFAULT_DISPLAY) {
+                    val state = displayManager.getDisplay(displayId).state
+                    screenOn = state != android.view.Display.STATE_OFF
+                    android.util.Log.i("SlideshowScreen", "Display changed: screenOn=$screenOn (state=$state)")
+                }
+            }
+        }
+        displayManager.registerDisplayListener(listener, android.os.Handler(android.os.Looper.getMainLooper()))
+        val initialState = displayManager.getDisplay(android.view.Display.DEFAULT_DISPLAY).state
+        screenOn = initialState != android.view.Display.STATE_OFF
+        android.util.Log.i("SlideshowScreen", "Display listener registered: screenOn=$screenOn (state=$initialState)")
+        onDispose {
+            android.util.Log.i("SlideshowScreen", "Display listener unregistered")
+            displayManager.unregisterDisplayListener(listener)
+        }
+    }
     // Play order is a list of item ids (resilient to the set changing under us); `currentId`
     // is the item on screen. Tracking ids, not indices, keeps the current photo pinned when
     // the set or shuffle changes.
@@ -406,7 +435,15 @@ private fun SlideshowScreen(
         val renderItem: @Composable (String) -> Unit = { id ->
             val item = items.firstOrNull { it.id == id } ?: items.first()
             if (item.isVideo) {
-                VideoPlayer(item.file, playing = interactive, muted = settings.muteVideos, onEnded = { advance(1) })
+                // key(screenOn): the player is recreated across a screen on/off transition.
+                // While the screen is off we build nothing — the old player is disposed and no
+                // new one is made, so we don't decode a fresh frame in the dark and the device
+                // can suspend. On wake the player is built fresh, so its surface can't be stale/black.
+                key(screenOn) {
+                    if (screenOn) {
+                        VideoPlayer(item.file, playing = interactive, muted = settings.muteVideos, onEnded = { advance(1) })
+                    }
+                }
             } else {
                 PhotoBackground(item.file, settings.effect, settings.backgroundStyle)
             }
@@ -483,9 +520,15 @@ private fun SlideshowScreen(
         }
     }
 
-    // Auto-advance stills after the configured interval; pause while an overlay is open.
-    LaunchedEffect(currentId, items, interactive, settings.intervalMs) {
+    // Auto-advance stills after the configured interval; pause while an overlay is open or the
+    // screen is off. Keying on screenOn cancels the timer when the panel sleeps and restarts it
+    // fresh on wake, so the slideshow never advances in the dark.
+    LaunchedEffect(currentId, items, interactive, settings.intervalMs, screenOn) {
         if (!interactive) return@LaunchedEffect
+        if (!screenOn) {
+            android.util.Log.i("SlideshowScreen", "auto-advance paused: screen off")
+            return@LaunchedEffect
+        }
         val item = items.firstOrNull { it.id == currentId } ?: return@LaunchedEffect
         if (!item.isVideo) {
             kotlinx.coroutines.delay(settings.intervalMs)
@@ -1087,7 +1130,6 @@ private fun KenBurnsImage(file: File) {
 private fun VideoPlayer(file: File, playing: Boolean, muted: Boolean, onEnded: () -> Unit) {
     android.util.Log.i("VideoPlayer", "Composing VideoPlayer for file: ${file.name}, playing=$playing")
     var isMuted by remember(muted) { mutableStateOf(muted) }
-    var firstFrameRendered by remember(file) { mutableStateOf(false) }
     val context = LocalContext.current
     val player = remember(file) {
         android.util.Log.i("VideoPlayer", "remember(file): Building ExoPlayer for file: ${file.name}")
@@ -1102,17 +1144,6 @@ private fun VideoPlayer(file: File, playing: Boolean, muted: Boolean, onEnded: (
         }
     }
     
-    // Safety fallback: if the hardware decoder hangs on an unsupported cinematic photo format
-    // it won't crash, but it will never render a frame. Skip it if it's stuck for 8 seconds.
-    LaunchedEffect(file) {
-        kotlinx.coroutines.delay(8000)
-        if (!firstFrameRendered) {
-            android.util.Log.w("VideoPlayer", "ExoPlayer failed to render first frame within 8s. Skipping.")
-            android.util.Log.i("VideoPlayer", "8s fallback calling onEnded()")
-            onEnded()
-        }
-    }
-
     // Pause playback when an overlay covers the slideshow (so audio stops under a submenu).
     LaunchedEffect(playing) { 
         android.util.Log.i("VideoPlayer", "LaunchedEffect(playing): setting playWhenReady=$playing")
@@ -1136,7 +1167,6 @@ private fun VideoPlayer(file: File, playing: Boolean, muted: Boolean, onEnded: (
             }
             override fun onRenderedFirstFrame() {
                 android.util.Log.i("VideoPlayer", "onRenderedFirstFrame")
-                firstFrameRendered = true
             }
         }
         player.addListener(listener)
