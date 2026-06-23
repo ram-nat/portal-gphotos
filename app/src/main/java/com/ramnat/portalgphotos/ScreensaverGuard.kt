@@ -103,9 +103,9 @@ object ScreensaverGuard {
                         Settings.Secure.putInt(cr, KEY_SLEEP_TIMEOUT, -1)
                         Settings.Secure.putInt(cr, KEY_SLEEP_TIMEOUT_CHARGING, -1)
                         Settings.Secure.putInt(cr, KEY_SLEEP_TIMEOUT_DISCHARGING, -1)
-                        Log.i(TAG, "sleep-when-alone: screensaver off, timeout ${SLEEP_ALONE_TIMEOUT_MS}ms (saved ${cur}ms)")
+                        debugLog(TAG) { "sleep-when-alone: screensaver off, timeout ${SLEEP_ALONE_TIMEOUT_MS}ms (saved ${cur}ms)" }
                     } else {
-                        Log.i(TAG, "sleep-when-alone: already active, leaving timeout as-is")
+                        debugLog(TAG) { "sleep-when-alone: already active, leaving timeout as-is" }
                     }
                 }
                 PowerPolicy.AWAKE_FOREVER -> {
@@ -124,7 +124,7 @@ object ScreensaverGuard {
                         Settings.Secure.putInt(cr, KEY_SLEEP_TIMEOUT_DISCHARGING, savedSleepDischarging)
                         
                         prefs.edit().putBoolean(KEY_OVERRIDE_ACTIVE, false).apply()
-                        Log.i(TAG, "awake-forever: screensaver on, timeout restored to ${saved}ms")
+                        debugLog(TAG) { "awake-forever: screensaver on, timeout restored to ${saved}ms" }
                     }
                     applyNow(context) // re-assert our screensaver component
                 }
@@ -140,7 +140,7 @@ object ScreensaverGuard {
             val current = Settings.Secure.getString(context.contentResolver, KEY)
             if (current != COMPONENT) {
                 Settings.Secure.putString(context.contentResolver, KEY, COMPONENT)
-                Log.i(TAG, "re-asserted screensaver_components (was: $current)")
+                debugLog(TAG) { "re-asserted screensaver_components (was: $current)" }
             }
             true
         } catch (e: SecurityException) {

@@ -1,6 +1,7 @@
 package com.ramnat.portalgphotos.ui
 
 import android.content.Intent
+import com.ramnat.portalgphotos.debugLog
 import android.net.Uri
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
@@ -107,6 +108,7 @@ import java.util.Date
 import java.util.Locale
 
 /** Top-level renderer that maps app state to a screen. */
+
 @Composable
 fun AppRoot(
     state: UiState,
@@ -348,16 +350,16 @@ private fun SlideshowScreen(
                 if (displayId == android.view.Display.DEFAULT_DISPLAY) {
                     val state = displayManager.getDisplay(displayId).state
                     screenOn = state != android.view.Display.STATE_OFF
-                    android.util.Log.i("SlideshowScreen", "Display changed: screenOn=$screenOn (state=$state)")
+                    debugLog("SlideshowScreen") { "Display changed: screenOn=$screenOn (state=$state)" }
                 }
             }
         }
         displayManager.registerDisplayListener(listener, android.os.Handler(android.os.Looper.getMainLooper()))
         val initialState = displayManager.getDisplay(android.view.Display.DEFAULT_DISPLAY).state
         screenOn = initialState != android.view.Display.STATE_OFF
-        android.util.Log.i("SlideshowScreen", "Display listener registered: screenOn=$screenOn (state=$initialState)")
+        debugLog("SlideshowScreen") { "Display listener registered: screenOn=$screenOn (state=$initialState)" }
         onDispose {
-            android.util.Log.i("SlideshowScreen", "Display listener unregistered")
+            debugLog("SlideshowScreen") { "Display listener unregistered" }
             displayManager.unregisterDisplayListener(listener)
         }
     }
@@ -390,7 +392,7 @@ private fun SlideshowScreen(
         val oldId = currentId
         pos = p
         currentId = order.getOrElse(p) { order.first() }
-        android.util.Log.i("SlideshowScreen", "advance(step=$step): pos $oldPos -> $pos, id $oldId -> $currentId")
+        debugLog("SlideshowScreen") { "advance(step=$step): pos $oldPos -> $pos, id $oldId -> $currentId" }
     }
 
     val interactive = overlay == Overlay.NONE
@@ -526,7 +528,7 @@ private fun SlideshowScreen(
     LaunchedEffect(currentId, items, interactive, settings.intervalMs, screenOn) {
         if (!interactive) return@LaunchedEffect
         if (!screenOn) {
-            android.util.Log.i("SlideshowScreen", "auto-advance paused: screen off")
+            debugLog("SlideshowScreen") { "auto-advance paused: screen off" }
             return@LaunchedEffect
         }
         val item = items.firstOrNull { it.id == currentId } ?: return@LaunchedEffect
@@ -1128,11 +1130,11 @@ private fun KenBurnsImage(file: File) {
 @OptIn(UnstableApi::class)
 @Composable
 private fun VideoPlayer(file: File, playing: Boolean, muted: Boolean, onEnded: () -> Unit) {
-    android.util.Log.i("VideoPlayer", "Composing VideoPlayer for file: ${file.name}, playing=$playing")
+    debugLog("VideoPlayer") { "Composing VideoPlayer for file: ${file.name}, playing=$playing" }
     var isMuted by remember(muted) { mutableStateOf(muted) }
     val context = LocalContext.current
     val player = remember(file) {
-        android.util.Log.i("VideoPlayer", "remember(file): Building ExoPlayer for file: ${file.name}")
+        debugLog("VideoPlayer") { "remember(file): Building ExoPlayer for file: ${file.name}" }
         val renderersFactory = androidx.media3.exoplayer.DefaultRenderersFactory(context)
             .setEnableDecoderFallback(true)
             
@@ -1146,17 +1148,17 @@ private fun VideoPlayer(file: File, playing: Boolean, muted: Boolean, onEnded: (
     
     // Pause playback when an overlay covers the slideshow (so audio stops under a submenu).
     LaunchedEffect(playing) { 
-        android.util.Log.i("VideoPlayer", "LaunchedEffect(playing): setting playWhenReady=$playing")
+        debugLog("VideoPlayer") { "LaunchedEffect(playing): setting playWhenReady=$playing" }
         player.playWhenReady = playing 
     }
     LaunchedEffect(isMuted) { player.volume = if (isMuted) 0f else 1f }
     DisposableEffect(file) {
-        android.util.Log.i("VideoPlayer", "DisposableEffect entered for file: ${file.name}")
+        debugLog("VideoPlayer") { "DisposableEffect entered for file: ${file.name}" }
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
-                android.util.Log.i("VideoPlayer", "onPlaybackStateChanged: state=$state")
+                debugLog("VideoPlayer") { "onPlaybackStateChanged: state=$state" }
                 if (state == Player.STATE_ENDED) {
-                    android.util.Log.i("VideoPlayer", "Playback ended naturally. Calling onEnded().")
+                    debugLog("VideoPlayer") { "Playback ended naturally. Calling onEnded()." }
                     onEnded()
                 }
             }
@@ -1166,12 +1168,12 @@ private fun VideoPlayer(file: File, playing: Boolean, muted: Boolean, onEnded: (
                 onEnded()
             }
             override fun onRenderedFirstFrame() {
-                android.util.Log.i("VideoPlayer", "onRenderedFirstFrame")
+                debugLog("VideoPlayer") { "onRenderedFirstFrame" }
             }
         }
         player.addListener(listener)
         onDispose {
-            android.util.Log.i("VideoPlayer", "DisposableEffect onDispose for file: ${file.name}. Releasing player.")
+            debugLog("VideoPlayer") { "DisposableEffect onDispose for file: ${file.name}. Releasing player." }
             player.removeListener(listener)
             player.release()
         }

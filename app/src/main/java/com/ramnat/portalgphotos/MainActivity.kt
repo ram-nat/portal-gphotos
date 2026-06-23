@@ -22,7 +22,7 @@ import kotlinx.coroutines.launch
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        android.util.Log.i("MainActivity", "onCreate called")
+        debugLog("MainActivity") { "onCreate called" }
         ScreensaverGuard.ensureScheduled(this)
         enterImmersive()
         setContent {
@@ -105,7 +105,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        android.util.Log.i("MainActivity", "onResume called")
+        debugLog("MainActivity") { "onResume called" }
         // Re-apply the user's preferred policy when the app is in the foreground.
         // This ensures SLEEP_WHEN_ALONE disables the screensaver so we can doze gracefully,
         // and also forces Android's PowerManager to recalculate the idle timer upon waking up.
@@ -115,7 +115,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun applyPowerPolicyAndRecalculateTimer(policy: PowerPolicy) {
-        android.util.Log.i("MainActivity", "applyPowerPolicyAndRecalculateTimer called with policy: $policy")
+        debugLog("MainActivity") { "applyPowerPolicyAndRecalculateTimer called with policy: $policy" }
         if (policy == PowerPolicy.AWAKE_FOREVER) {
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             ScreensaverGuard.applyPowerPolicy(this, policy)
