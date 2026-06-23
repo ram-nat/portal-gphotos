@@ -58,9 +58,10 @@ Then finish signing in on the Portal.
 
 ## 4. Usage
 - Long press on screen to bring up the menu.
-- Swipe left/right or tap on left/right edges to navigate between photos.
+- Swipe left/right to navigate between photos.
 - Settings screen to control slideshow settings, weather, etc.
-- Swipe down from top to get the top bar when screensaver is active
+- Swipe down from top to get the top bar when screensaver is active.
+- Tap to dismiss screensaver (configurable).
 
 ---
 
