@@ -21,10 +21,11 @@
 
         <activity
             android:name=".MainActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
             android:exported="true"
             android:icon="@mipmap/ic_launcher"
             android:launchMode="singleTask"
-            android:screenOrientation="landscape"
+            android:screenOrientation="fullSensor"
             android:theme="@style/Theme.PortalGphotos">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
