@@ -492,22 +492,19 @@ class AuditFixesTest {
     private fun screensBytecodeAscii(): String {
         val loader = MainViewModel::class.java.classLoader!!
         val sb = StringBuilder()
-        val urls = loader.getResources("com/ramnat/portalgphotos/ui")
-        while (urls.hasMoreElements()) {
-            val url = urls.nextElement()
-            if (url.protocol == "file") {
-                File(url.toURI()).listFiles()
-                    ?.filter { it.name.startsWith("ScreensKt") && it.name.endsWith(".class") }
-                    ?.forEach { sb.append(String(it.readBytes(), Charsets.ISO_8859_1)) }
-            } else if (url.protocol == "jar") {
-                val conn = url.openConnection() as java.net.JarURLConnection
-                val jar = conn.jarFile
-                val entries = jar.entries()
-                while (entries.hasMoreElements()) {
-                    val e = entries.nextElement()
-                    if (e.name.startsWith("com/ramnat/portalgphotos/ui/ScreensKt") && e.name.endsWith(".class")) {
-                        jar.getInputStream(e).use { sb.append(String(it.readBytes(), Charsets.ISO_8859_1)) }
-                    }
+        val resUrl = loader.getResource("com/ramnat/portalgphotos/ui/ScreensKt.class") ?: return ""
+        if (resUrl.protocol == "file") {
+            File(resUrl.toURI()).parentFile?.listFiles()
+                ?.filter { it.name.startsWith("ScreensKt") && it.name.endsWith(".class") }
+                ?.forEach { sb.append(String(it.readBytes(), Charsets.ISO_8859_1)) }
+        } else if (resUrl.protocol == "jar") {
+            val conn = resUrl.openConnection() as java.net.JarURLConnection
+            val jar = conn.jarFile
+            val entries = jar.entries()
+            while (entries.hasMoreElements()) {
+                val e = entries.nextElement()
+                if (e.name.startsWith("com/ramnat/portalgphotos/ui/ScreensKt") && e.name.endsWith(".class")) {
+                    jar.getInputStream(e).use { sb.append(String(it.readBytes(), Charsets.ISO_8859_1)) }
                 }
             }
         }

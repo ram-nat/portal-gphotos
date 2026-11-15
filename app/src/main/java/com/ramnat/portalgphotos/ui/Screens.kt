@@ -62,6 +62,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -396,20 +397,23 @@ private fun SlideshowScreen(
     }
 
     val interactive = overlay == Overlay.NONE
+    val currentSettings by rememberUpdatedState(settings)
+    val currentInteractive by rememberUpdatedState(interactive)
+    val currentAdvance by rememberUpdatedState<(Int) -> Unit>(::advance)
 
     // Only attach touch handlers in the interactive app. In screensaver (Dream) mode we
     // must NOT consume touches, so they fall through and the Dream dismisses on touch.
     val gestures = if (!gesturesEnabled) Modifier else Modifier
         .pointerInput(items.size) {
             detectTapGestures(
-                onLongPress = { if (interactive) overlay = Overlay.MENU },
+                onLongPress = { if (currentInteractive) overlay = Overlay.MENU },
                 // Tap left half = previous, right half = next. No on-screen controls.
                 onTap = { offset ->
-                    if (interactive) {
-                        if (settings.tapToDismiss) {
+                    if (currentInteractive) {
+                        if (currentSettings.tapToDismiss) {
                             (context as? android.app.Activity)?.finish()
                         } else {
-                            if (offset.x < size.width / 2f) advance(-1) else advance(1)
+                            if (offset.x < size.width / 2f) currentAdvance(-1) else currentAdvance(1)
                         }
                     }
                 },
@@ -423,7 +427,9 @@ private fun SlideshowScreen(
                 onHorizontalDrag = { _, amount -> total += amount },
                 // Swipe left (negative) = next, swipe right (positive) = previous.
                 onDragEnd = {
-                    if (interactive) { if (total <= -threshold) advance(1) else if (total >= threshold) advance(-1) }
+                    if (currentInteractive) {
+                        if (total <= -threshold) currentAdvance(1) else if (total >= threshold) currentAdvance(-1)
+                    }
                 },
             )
         }
@@ -727,7 +733,12 @@ private fun SettingsScreen(
             }
 
             ToggleCard("Shuffle", "Play photos in random order", settings.shuffle, onSetShuffle)
-            ToggleCard("Tap to dismiss", "Tapping the screen closes the app", settings.tapToDismiss, onSetTapToDismiss)
+            ToggleCard(
+                "Tap to dismiss",
+                "Exit slideshow when tapped (use Gear button or long-press for settings)",
+                settings.tapToDismiss,
+                onSetTapToDismiss,
+            )
 
             SettingCard {
                 Text("Slide interval", color = Color.White, fontSize = 24.sp)
