@@ -444,6 +444,19 @@ private fun SlideshowScreen(
     val currentInteractive by rememberUpdatedState(interactive)
     val currentAdvance by rememberUpdatedState<(Int) -> Unit>(::advance)
 
+    // Preload the next still image into Coil's memory cache so transitions never flash blank.
+    LaunchedEffect(pos, order, items) {
+        if (order.size > 1) {
+            val nextId = order[(pos + 1) % order.size]
+            val nextItem = items.firstOrNull { it.id == nextId }
+            if (nextItem != null && !nextItem.isVideo) {
+                context.imageLoader.enqueue(
+                    ImageRequest.Builder(context).data(nextItem.file).build()
+                )
+            }
+        }
+    }
+
     // Only attach touch handlers in the interactive app. In screensaver (Dream) mode we
     // must NOT consume touches, so they fall through and the Dream dismisses on touch.
     val gestures = if (!gesturesEnabled) Modifier else Modifier
@@ -496,7 +509,7 @@ private fun SlideshowScreen(
                     }
                 }
             } else {
-                PhotoBackground(item.file, settings.effect, settings.backgroundStyle)
+                PhotoBackground(item.file, settings.effect, settings.backgroundStyle, settings.intervalMs)
             }
         }
         // The effect drives the transition between photos: hard cut, crossfade, or slide.
@@ -1119,7 +1132,7 @@ private fun ManageScreen(
 }
 
 @Composable
-private fun PhotoBackground(file: File, effect: SlideEffect, bgStyle: BackgroundStyle) {
+private fun PhotoBackground(file: File, effect: SlideEffect, bgStyle: BackgroundStyle, intervalMs: Long) {
     Box(Modifier.fillMaxSize()) {
         when (bgStyle) {
             BackgroundStyle.BLACK -> {
@@ -1168,7 +1181,7 @@ private fun PhotoBackground(file: File, effect: SlideEffect, bgStyle: Background
         }
         
         // The sharp, fully-visible photo on top — animated (Ken Burns) or static per setting.
-        if (effect == SlideEffect.KEN_BURNS) KenBurnsImage(file) else StaticImage(file)
+        if (effect == SlideEffect.KEN_BURNS) KenBurnsImage(file, intervalMs) else StaticImage(file)
     }
 }
 
@@ -1183,13 +1196,14 @@ private fun StaticImage(file: File) {
 }
 
 @Composable
-private fun KenBurnsImage(file: File) {
+private fun KenBurnsImage(file: File, intervalMs: Long) {
     // Fit the whole photo within the screen (letterbox/pillarbox on black for aspect
     // ratios that don't match the Portal's ~1280x800). A gentle zoom keeps some life
-    // without cropping much of what we just fit.
+    // without cropping much of what we just fit, lasting the full slide interval (+900ms fade).
     val scale = remember(file) { Animatable(1f) }
-    LaunchedEffect(file) {
-        scale.animateTo(KEN_BURNS_MAX_SCALE, animationSpec = tween(KEN_BURNS_MS, easing = LinearEasing))
+    val durationMs = (intervalMs + 900L).coerceAtLeast(5_000L).toInt()
+    LaunchedEffect(file, durationMs) {
+        scale.animateTo(KEN_BURNS_MAX_SCALE, animationSpec = tween(durationMs, easing = LinearEasing))
     }
     AsyncImage(
         model = file,
