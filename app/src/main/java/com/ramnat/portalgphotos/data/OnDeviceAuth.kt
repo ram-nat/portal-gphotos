@@ -9,6 +9,7 @@ import java.net.ServerSocket
 import java.security.SecureRandom
 import java.util.concurrent.TimeUnit
 import okhttp3.FormBody
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
@@ -41,6 +42,13 @@ class OnDeviceAuth(
     private val authUri = "https://accounts.google.com/o/oauth2/v2/auth"
     private val tokenUri = "https://oauth2.googleapis.com/token"
     private val scope = "https://www.googleapis.com/auth/photospicker.mediaitems.readonly"
+
+    @Volatile private var activeServer: ServerSocket? = null
+
+    /** Immediately unblock any in-progress [run] call by closing the loopback socket. */
+    fun cancel() {
+        runCatching { activeServer?.close() }
+    }
 
     /**
      * Prefer a pushed client file; fall back to build-time creds. Accepts Google's
@@ -97,42 +105,49 @@ class OnDeviceAuth(
                 )
         val loopback = InetAddress.getByName("127.0.0.1")
         ServerSocket(0, 50, loopback).use { server ->
-            server.soTimeout = timeoutMs.toInt()
-            val port = server.localPort
-            val redirectUri = "http://127.0.0.1:$port/"
-            val state = randomToken()
-            val authUrl = buildAuthUrl(redirectUri, state)
-            openBrowser(Uri.parse(authUrl))
+            activeServer = server
+            try {
+                server.soTimeout = timeoutMs.toInt()
+                val port = server.localPort
+                val redirectUri = "http://127.0.0.1:$port/"
+                val state = randomToken()
+                val authUrl = buildAuthUrl(redirectUri, state)
+                openBrowser(Uri.parse(authUrl))
 
-            val callback =
-                    try {
-                        acceptCallback(server)
-                    } catch (e: java.net.SocketTimeoutException) {
-                        throw IOException(
-                                "Timed out waiting for sign-in. Tap Sign in to try again."
-                        )
-                    }
-            callback.error?.let { throw IOException("Authorization denied: $it") }
-            if (callback.state != state) {
-                throw IOException("State mismatch — aborting sign-in.")
+                val callback =
+                        try {
+                            acceptCallback(server)
+                        } catch (e: java.net.SocketTimeoutException) {
+                            throw IOException(
+                                    "Timed out waiting for sign-in. Tap Sign in to try again."
+                            )
+                        } catch (e: java.net.SocketException) {
+                            throw IOException("Sign-in cancelled.", e)
+                        }
+                callback.error?.let { throw IOException("Authorization denied: $it") }
+                if (callback.state != state) {
+                    throw IOException("State mismatch — aborting sign-in.")
+                }
+                val code = callback.code ?: throw IOException("No authorization code returned.")
+
+                val refreshToken = exchangeCode(code, redirectUri)
+                writeTokenConfig(refreshToken)
+            } finally {
+                if (activeServer === server) activeServer = null
             }
-            val code = callback.code ?: throw IOException("No authorization code returned.")
-
-            val refreshToken = exchangeCode(code, redirectUri)
-            writeTokenConfig(refreshToken)
         }
     }
 
     private fun buildAuthUrl(redirectUri: String, state: String): String =
-            Uri.parse(authUri)
-                    .buildUpon()
-                    .appendQueryParameter("client_id", clientId)
-                    .appendQueryParameter("redirect_uri", redirectUri)
-                    .appendQueryParameter("response_type", "code")
-                    .appendQueryParameter("scope", scope)
-                    .appendQueryParameter("access_type", "offline")
-                    .appendQueryParameter("prompt", "consent")
-                    .appendQueryParameter("state", state)
+            authUri.toHttpUrl()
+                    .newBuilder()
+                    .addQueryParameter("client_id", clientId)
+                    .addQueryParameter("redirect_uri", redirectUri)
+                    .addQueryParameter("response_type", "code")
+                    .addQueryParameter("scope", scope)
+                    .addQueryParameter("access_type", "offline")
+                    .addQueryParameter("prompt", "consent")
+                    .addQueryParameter("state", state)
                     .build()
                     .toString()
 
@@ -217,11 +232,6 @@ class OnDeviceAuth(
     private fun randomToken(): String {
         val bytes = ByteArray(24)
         SecureRandom().nextBytes(bytes)
-        return android.util.Base64.encodeToString(
-                bytes,
-                android.util.Base64.URL_SAFE or
-                        android.util.Base64.NO_PADDING or
-                        android.util.Base64.NO_WRAP
-        )
+        return java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
     }
 }

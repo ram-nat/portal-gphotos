@@ -145,7 +145,7 @@ fun AppRoot(
             is UiState.Loading -> CenterMessage("Loading…")
             is UiState.NeedsSetup -> SetupScreen(state.message, state.canSignIn, onSignIn, onRetry,
                 onCancel = if (state.canCancel) onCancel else null, onRestore = onRestoreState)
-            is UiState.SigningIn -> CenterMessage("Opening sign-in…\nApprove access, then return to this app.")
+            is UiState.SigningIn -> SigningInScreen(state.authUri, onCancel)
             is UiState.Picking -> PickingScreen(state.qr, state.pickerUri, state.status, onCancel)
             is UiState.Downloading ->
                 CenterMessage("Downloading ${state.done + 1} of ${state.total}…")
@@ -187,6 +187,44 @@ private fun CenterMessage(text: String) {
         contentAlignment = Alignment.Center,
     ) {
         Text(text, color = Color.White, fontSize = 28.sp, textAlign = TextAlign.Center)
+    }
+}
+
+@Composable
+private fun SigningInScreen(authUri: String, onCancel: () -> Unit) {
+    val context = LocalContext.current
+    Column(
+        Modifier.fillMaxSize().padding(top = 64.dp, start = 48.dp, end = 48.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text("Signing in…", color = Color.White, fontSize = 36.sp)
+        Spacer(Modifier.height(16.dp))
+        Text(
+            "Approve Google Photos access in the browser, then return here.",
+            color = Color.LightGray,
+            fontSize = 20.sp,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(32.dp))
+        if (authUri.isNotBlank()) {
+            Button(
+                onClick = {
+                    runCatching {
+                        androidx.browser.customtabs.CustomTabsIntent.Builder()
+                            .build()
+                            .launchUrl(context, Uri.parse(authUri))
+                    }
+                },
+                modifier = Modifier.height(72.dp),
+            ) {
+                Text("Open browser again", fontSize = 22.sp)
+            }
+            Spacer(Modifier.height(16.dp))
+        }
+        TextButton(onClick = onCancel, modifier = Modifier.height(64.dp)) {
+            Text("Cancel", color = Color.LightGray, fontSize = 20.sp)
+        }
     }
 }
 

@@ -93,6 +93,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val geoResults: StateFlow<List<GeoPlace>> = _geoResults.asStateFlow()
 
     private var pickerJob: Job? = null
+    private var signInJob: Job? = null
 
     // If a pick (add or replace) hit an expired/revoked token and routed the user to
     // sign-in, this remembers which pick to resume after a successful re-auth. In-memory
@@ -278,7 +279,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * signed-in browser, catch the redirect, and write token.json. Then proceed as normal.
      */
     fun signIn() {
-        viewModelScope.launch {
+        auth.cancel()
+        signInJob?.cancel()
+        signInJob = viewModelScope.launch {
             _state.value = UiState.Loading
             try {
                 withContext(Dispatchers.IO) {
@@ -314,7 +317,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     false -> addPhotos()
                     null -> start()
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
+                if (e.message == "Sign-in cancelled.") return@launch
                 _state.value = UiState.Error(e.message ?: "Sign-in failed")
             }
         }
@@ -332,8 +338,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         pickerJob = viewModelScope.launch { runPicker(replace = true) }
     }
 
-    /** Abort a running picker flow and return to the slideshow (or setup if cache is empty). */
+    /** Abort a running picker or sign-in flow and return to the slideshow (or setup if cache is empty). */
     fun cancelPicker() {
+        auth.cancel()
+        signInJob?.cancel()
+        signInJob = null
         pickerJob?.cancel()
         pickerJob = null
         clearPending()
@@ -389,7 +398,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             while (!session.mediaItemsSet) {
                 if (System.currentTimeMillis() > deadline) {
                     clearPending()
-                    _state.value = UiState.Error("Timed out waiting for a selection.")
+                    val cachedOnDisk = withContext(Dispatchers.IO) { cache.load() }
+                    _state.value = if (cachedOnDisk.isNotEmpty()) {
+                        UiState.Showing(cachedOnDisk)
+                    } else {
+                        UiState.Error("Timed out waiting for a selection.")
+                    }
                     return
                 }
                 delay(session.pollIntervalMs.coerceAtLeast(1500L))
@@ -407,7 +421,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val items = withContext(Dispatchers.IO) { picker.listMediaItems(sessionId) }
             if (items.isEmpty()) {
                 clearPending()
-                _state.value = UiState.Error("No photos were selected.")
+                val cachedOnDisk = withContext(Dispatchers.IO) { cache.load() }
+                _state.value = if (cachedOnDisk.isNotEmpty()) {
+                    UiState.Showing(cachedOnDisk)
+                } else {
+                    UiState.Error("No photos were selected.")
+                }
                 return
             }
             // Deduplicate: skip items already in the cache so re-picking the same
