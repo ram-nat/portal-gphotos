@@ -16,10 +16,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.lifecycleScope
 import com.ramnat.portalgphotos.ui.AppRoot
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+    private var clearKeepScreenOnJob: Job? = null
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         debugLog("MainActivity") { "onCreate called" }
@@ -116,6 +118,8 @@ class MainActivity : ComponentActivity() {
 
     private fun applyPowerPolicyAndRecalculateTimer(policy: PowerPolicy) {
         debugLog("MainActivity") { "applyPowerPolicyAndRecalculateTimer called with policy: $policy" }
+        clearKeepScreenOnJob?.cancel()
+        clearKeepScreenOnJob = null
         if (policy == PowerPolicy.AWAKE_FOREVER) {
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             ScreensaverGuard.applyPowerPolicy(this, policy)
@@ -131,7 +135,7 @@ class MainActivity : ComponentActivity() {
             // 3. Wait for the transition to settle, then drop the flag.
             //    This forces Android's PowerManager to recalculate the idle timer,
             //    picking up our new 15-minute timeout for a fresh countdown!
-            lifecycleScope.launch {
+            clearKeepScreenOnJob = lifecycleScope.launch {
                 delay(2000)
                 window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             }
