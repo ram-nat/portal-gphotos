@@ -132,6 +132,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (v) refreshWeather() else { _geoResults.value = emptyList(); _geoStatus.value = null }
     }
 
+    fun setUseFahrenheit(v: Boolean) {
+        settings.setUseFahrenheit(v)
+        _settings.value = _settings.value.copy(useFahrenheit = v)
+        refreshWeather()
+    }
+
     private fun evaluateSleepState() {
         if (_settings.value.sleepWhenAlone) {
             _powerPolicy.value = PowerPolicy.SLEEP_WHEN_ALONE
@@ -176,7 +182,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (!s.showWeather || lat == null || lon == null) return
         viewModelScope.launch {
             val w = withContext(Dispatchers.IO) {
-                runCatching { weather.current(lat, lon, fahrenheit) }.getOrNull()
+                runCatching { weather.current(lat, lon, s.useFahrenheit) }.getOrNull()
             }
             if (w != null) _weather.value = w
         }

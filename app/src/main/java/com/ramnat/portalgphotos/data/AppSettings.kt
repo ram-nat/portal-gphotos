@@ -19,6 +19,7 @@ data class SettingsState(
     val showClock: Boolean = true,
     val showPhotoDate: Boolean = true,
     val showWeather: Boolean = false,
+    val useFahrenheit: Boolean = true,
     val weatherLat: Double? = null,
     val weatherLon: Double? = null,
     val weatherPlace: String? = null,
@@ -48,6 +49,7 @@ class AppSettings(context: Context) {
             showClock = prefs.getBoolean(KEY_CLOCK, true),
             showPhotoDate = prefs.getBoolean(KEY_PHOTO_DATE, true),
             showWeather = prefs.getBoolean(KEY_WEATHER, false),
+            useFahrenheit = prefs.getBoolean(KEY_USE_FAHRENHEIT, true),
             weatherLat = lat,
             weatherLon = lon,
             weatherPlace = place,
@@ -66,6 +68,7 @@ class AppSettings(context: Context) {
     fun setShowClock(v: Boolean) = prefs.edit().putBoolean(KEY_CLOCK, v).apply()
     fun setShowPhotoDate(v: Boolean) = prefs.edit().putBoolean(KEY_PHOTO_DATE, v).apply()
     fun setShowWeather(v: Boolean) = prefs.edit().putBoolean(KEY_WEATHER, v).apply()
+    fun setUseFahrenheit(v: Boolean) = prefs.edit().putBoolean(KEY_USE_FAHRENHEIT, v).apply()
     fun setSleepWhenAlone(v: Boolean) = prefs.edit().putBoolean(KEY_SLEEP_ALONE, v).apply()
     fun setBackgroundStyle(v: BackgroundStyle) = prefs.edit().putString(KEY_BG_STYLE, v.name).apply()
     fun setTapToDismiss(v: Boolean) = prefs.edit().putBoolean(KEY_TAP_DISMISS, v).apply()
@@ -84,6 +87,7 @@ class AppSettings(context: Context) {
         const val KEY_CLOCK = "show_clock"
         const val KEY_PHOTO_DATE = "show_photo_date"
         const val KEY_WEATHER = "show_weather"
+        const val KEY_USE_FAHRENHEIT = "use_fahrenheit"
         const val KEY_SLEEP_ALONE = "sleep_when_alone"
         const val KEY_LAT = "weather_lat"
         const val KEY_LON = "weather_lon"

@@ -39,6 +39,8 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
@@ -76,9 +78,12 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -134,6 +139,7 @@ fun AppRoot(
     onSetShowClock: (Boolean) -> Unit,
     onSetShowPhotoDate: (Boolean) -> Unit,
     onSetShowWeather: (Boolean) -> Unit,
+    onSetUseFahrenheit: (Boolean) -> Unit = {},
     onSetBackgroundStyle: (com.ramnat.portalgphotos.data.BackgroundStyle) -> Unit,
     onSetSleepWhenAlone: (Boolean) -> Unit,
     onSetTapToDismiss: (Boolean) -> Unit,
@@ -169,6 +175,7 @@ fun AppRoot(
                 onSetShowClock = onSetShowClock,
                 onSetShowPhotoDate = onSetShowPhotoDate,
                 onSetShowWeather = onSetShowWeather,
+                onSetUseFahrenheit = onSetUseFahrenheit,
                 onSetBackgroundStyle = onSetBackgroundStyle,
                 onSetSleepWhenAlone = onSetSleepWhenAlone,
                 onSetTapToDismiss = onSetTapToDismiss,
@@ -362,6 +369,7 @@ private fun SlideshowScreen(
     onSetShowClock: (Boolean) -> Unit,
     onSetShowPhotoDate: (Boolean) -> Unit,
     onSetShowWeather: (Boolean) -> Unit,
+    onSetUseFahrenheit: (Boolean) -> Unit = {},
     onSetBackgroundStyle: (com.ramnat.portalgphotos.data.BackgroundStyle) -> Unit,
     onSetSleepWhenAlone: (Boolean) -> Unit,
     onSetTapToDismiss: (Boolean) -> Unit,
@@ -565,6 +573,7 @@ private fun SlideshowScreen(
                 onSetShowClock = onSetShowClock,
                 onSetShowPhotoDate = onSetShowPhotoDate,
                 onSetShowWeather = onSetShowWeather,
+                onSetUseFahrenheit = onSetUseFahrenheit,
                 onSetBackgroundStyle = onSetBackgroundStyle,
                 onSetSleepWhenAlone = onSetSleepWhenAlone,
                 onSetTapToDismiss = onSetTapToDismiss,
@@ -752,6 +761,7 @@ private fun SettingsScreen(
     onSetShowClock: (Boolean) -> Unit,
     onSetShowPhotoDate: (Boolean) -> Unit,
     onSetShowWeather: (Boolean) -> Unit,
+    onSetUseFahrenheit: (Boolean) -> Unit = {},
     onSetBackgroundStyle: (com.ramnat.portalgphotos.data.BackgroundStyle) -> Unit,
     onSetSleepWhenAlone: (Boolean) -> Unit,
     onSetTapToDismiss: (Boolean) -> Unit,
@@ -856,6 +866,7 @@ private fun SettingsScreen(
                 geoStatus = geoStatus,
                 geoResults = geoResults,
                 onSetShowWeather = onSetShowWeather,
+                onSetUseFahrenheit = onSetUseFahrenheit,
                 onSearchLocation = onSearchLocation,
                 onChooseLocation = onChooseLocation,
                 onDetectLocation = onDetectLocation,
@@ -901,10 +912,13 @@ private fun WeatherCard(
     geoStatus: String?,
     geoResults: List<GeoPlace>,
     onSetShowWeather: (Boolean) -> Unit,
+    onSetUseFahrenheit: (Boolean) -> Unit = {},
     onSearchLocation: (String) -> Unit,
     onChooseLocation: (GeoPlace) -> Unit,
     onDetectLocation: () -> Unit,
 ) {
+    val keyboard = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
     SettingCard {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
@@ -915,20 +929,65 @@ private fun WeatherCard(
         }
         if (settings.showWeather) {
             Spacer(Modifier.height(16.dp))
-            Text(
-                "Location: ${settings.weatherPlace ?: "not set"}",
-                color = Color.White,
-                fontSize = 18.sp,
-            )
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "Location: ${settings.weatherPlace ?: "not set"}",
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    modifier = Modifier.weight(1f),
+                )
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(ChipUnselected)
+                        .padding(3.dp),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    listOf("°F" to true, "°C" to false).forEach { (label, isF) ->
+                        val active = settings.useFahrenheit == isF
+                        Box(
+                            Modifier
+                                .width(48.dp)
+                                .height(34.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (active) MaterialTheme.colorScheme.primary else Color.Transparent)
+                                .clickable { onSetUseFahrenheit(isF) },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                label,
+                                color = if (active) Color.White else SubtitleColor,
+                                fontSize = 16.sp,
+                                fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
+                            )
+                        }
+                    }
+                }
+            }
             Spacer(Modifier.height(12.dp))
             Button(
-                onClick = onDetectLocation,
+                onClick = {
+                    keyboard?.hide()
+                    focusManager.clearFocus()
+                    onDetectLocation()
+                },
                 modifier = Modifier.fillMaxWidth().height(56.dp),
             ) {
                 Text("Use my location", fontSize = 20.sp)
             }
             Spacer(Modifier.height(12.dp))
             var city by remember { mutableStateOf("") }
+            val runSearch = {
+                if (city.isNotBlank()) {
+                    keyboard?.hide()
+                    focusManager.clearFocus()
+                    onSearchLocation(city)
+                }
+            }
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -940,6 +999,8 @@ private fun WeatherCard(
                     singleLine = true,
                     placeholder = { Text("Search for a city", color = SubtitleColor) },
                     textStyle = TextStyle(color = Color.White, fontSize = 20.sp),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = { runSearch() }),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = MaterialTheme.colorScheme.primary,
                         unfocusedBorderColor = SubtitleColor,
@@ -947,7 +1008,7 @@ private fun WeatherCard(
                     modifier = Modifier.weight(1f),
                 )
                 Button(
-                    onClick = { onSearchLocation(city) },
+                    onClick = { runSearch() },
                     enabled = city.isNotBlank(),
                     modifier = Modifier.height(56.dp),
                 ) {
@@ -968,7 +1029,11 @@ private fun WeatherCard(
                             .padding(bottom = 8.dp)
                             .clip(RoundedCornerShape(12.dp))
                             .background(ChipUnselected)
-                            .clickable { onChooseLocation(place) }
+                            .clickable {
+                                keyboard?.hide()
+                                focusManager.clearFocus()
+                                onChooseLocation(place)
+                            }
                             .padding(horizontal = 16.dp, vertical = 14.dp),
                     ) {
                         Text(place.label, color = Color.White, fontSize = 20.sp)
