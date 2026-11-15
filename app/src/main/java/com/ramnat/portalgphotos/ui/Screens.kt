@@ -90,11 +90,16 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import android.graphics.drawable.BitmapDrawable
+import android.media.ThumbnailUtils
+import android.provider.MediaStore
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.palette.graphics.Palette
 import coil.compose.AsyncImage
 import coil.imageLoader
 import coil.request.ImageRequest
 import coil.request.SuccessResult
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.ramnat.portalgphotos.R
 import com.ramnat.portalgphotos.UiState
 import com.ramnat.portalgphotos.data.CachedItem
@@ -1040,18 +1045,42 @@ private fun ManageScreen(
                         }
                         .then(if (isSel) Modifier.border(4.dp, Color.White) else Modifier),
                 ) {
-                    AsyncImage(
-                        model = ImageRequest.Builder(LocalContext.current).data(item.file).build(),
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                    )
                     if (item.isVideo) {
+                        var videoThumb by remember(item.file) { mutableStateOf<ImageBitmap?>(null) }
+                        LaunchedEffect(item.file) {
+                            videoThumb = withContext(Dispatchers.IO) {
+                                @Suppress("DEPRECATION")
+                                runCatching {
+                                    ThumbnailUtils.createVideoThumbnail(
+                                        item.file.absolutePath,
+                                        MediaStore.Images.Thumbnails.MINI_KIND
+                                    )?.asImageBitmap()
+                                }.getOrNull()
+                            }
+                        }
+                        videoThumb?.let { bmp ->
+                            Image(
+                                bitmap = bmp,
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
                         Text(
                             "▶",
                             color = Color.White,
                             fontSize = 28.sp,
                             modifier = Modifier.align(Alignment.Center),
+                        )
+                    } else {
+                        AsyncImage(
+                            model = ImageRequest.Builder(LocalContext.current)
+                                .data(item.file)
+                                .size(320)
+                                .build(),
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize(),
                         )
                     }
                     if (isSel) {
