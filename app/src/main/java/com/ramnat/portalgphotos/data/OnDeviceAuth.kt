@@ -47,16 +47,6 @@ class OnDeviceAuth(
      * `client_secret.json` (`installed`/`web` wrapper) or a flat `{client_id, client_secret}`.
      */
     private fun resolveCreds(clientFile: File?): Pair<String, String> {
-        val savedId = tokens.prefs.getString("client_id", null)
-        val savedSecret = tokens.prefs.getString("client_secret", null)
-        if (savedId != null &&
-                        savedSecret != null &&
-                        savedId.isNotBlank() &&
-                        savedSecret.isNotBlank()
-        ) {
-            return savedId to savedSecret
-        }
-
         if (clientFile != null && clientFile.isFile) {
             runCatching {
                 val o = JSONObject(clientFile.readText())
@@ -64,6 +54,10 @@ class OnDeviceAuth(
                 val id = inner.optString("client_id")
                 val secret = inner.optString("client_secret")
                 if (id.isNotBlank() && secret.isNotBlank()) {
+                    val prevId = tokens.prefs.getString("client_id", null)
+                    if (prevId != null && prevId != id) {
+                        tokens.clearRefreshToken()
+                    }
                     tokens.prefs
                             .edit()
                             .putString("client_id", id)
@@ -73,6 +67,16 @@ class OnDeviceAuth(
                     return id to secret
                 }
             }
+        }
+
+        val savedId = tokens.prefs.getString("client_id", null)
+        val savedSecret = tokens.prefs.getString("client_secret", null)
+        if (savedId != null &&
+                        savedSecret != null &&
+                        savedId.isNotBlank() &&
+                        savedSecret.isNotBlank()
+        ) {
+            return savedId to savedSecret
         }
         return BuildConfig.OAUTH_CLIENT_ID to BuildConfig.OAUTH_CLIENT_SECRET
     }

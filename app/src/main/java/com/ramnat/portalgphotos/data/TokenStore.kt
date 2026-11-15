@@ -47,6 +47,25 @@ class TokenStore(context: Context, private val configFile: File, private val htt
     )
 
     fun config(): Config? {
+        if (configFile.exists()) {
+            try {
+                val o = JSONObject(configFile.readText())
+                val cfg = Config(
+                    clientId = o.getString("client_id"),
+                    clientSecret = o.getString("client_secret"),
+                    refreshToken = o.getString("refresh_token"),
+                    tokenUri = o.optString("token_uri", "https://oauth2.googleapis.com/token"),
+                )
+                saveConfig(cfg)
+                cachedToken = null
+                expiresAtMs = 0L
+                configFile.delete()
+                return cfg
+            } catch (_: Exception) {
+                // Fall through to saved prefs if the file is unreadable
+            }
+        }
+
         val rToken = prefs.getString("refresh_token", null)
         if (rToken != null) {
             return Config(
@@ -57,23 +76,7 @@ class TokenStore(context: Context, private val configFile: File, private val htt
             )
         }
 
-        if (!configFile.exists()) {
-            return null
-        }
-        return try {
-            val o = JSONObject(configFile.readText())
-            val cfg = Config(
-                clientId = o.getString("client_id"),
-                clientSecret = o.getString("client_secret"),
-                refreshToken = o.getString("refresh_token"),
-                tokenUri = o.optString("token_uri", "https://oauth2.googleapis.com/token"),
-            )
-            saveConfig(cfg)
-            configFile.delete()
-            cfg
-        } catch (e: Exception) {
-            null
-        }
+        return null
     }
 
     fun saveConfig(cfg: Config) {
