@@ -29,16 +29,22 @@ import com.ramnat.portalgphotos.data.WeatherNow
 import java.util.Locale
 import com.ramnat.portalgphotos.ui.qrBitmap
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import org.json.JSONObject
 import java.io.File
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.Job
 
 sealed interface UiState {
@@ -54,7 +60,7 @@ sealed interface UiState {
 class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private val http = OkHttpClient.Builder()
-        .callTimeout(120, TimeUnit.SECONDS)
+        .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
         .build()
 
@@ -391,14 +397,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Poll the session until a selection lands, then download and cache it. */
     private suspend fun consumeSession(sessionId: String, replace: Boolean, deadline: Long) {
+        var downloadPhaseStarted = false
         try {
-            val existing =
-                if (replace) emptyList() else withContext(Dispatchers.IO) { cache.load() }
+            val cachedOnDisk = withContext(Dispatchers.IO) { cache.load() }
             var session = withContext(Dispatchers.IO) { picker.getSession(sessionId) }
             while (!session.mediaItemsSet) {
                 if (System.currentTimeMillis() > deadline) {
                     clearPending()
-                    val cachedOnDisk = withContext(Dispatchers.IO) { cache.load() }
                     _state.value = if (cachedOnDisk.isNotEmpty()) {
                         UiState.Showing(cachedOnDisk)
                     } else {
@@ -421,7 +426,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val items = withContext(Dispatchers.IO) { picker.listMediaItems(sessionId) }
             if (items.isEmpty()) {
                 clearPending()
-                val cachedOnDisk = withContext(Dispatchers.IO) { cache.load() }
                 _state.value = if (cachedOnDisk.isNotEmpty()) {
                     UiState.Showing(cachedOnDisk)
                 } else {
@@ -429,8 +433,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 return
             }
-            // Deduplicate: skip items already in the cache so re-picking the same
-            // photos in an "Add" flow doesn't waste bandwidth or disk space.
+
+            downloadPhaseStarted = true
+            val pickedIds = items.map { it.id }.toHashSet()
+            // On Replace all, keep overlapping cached items (saving re-download) and prune
+            // deselected old files BEFORE downloading new items to minimize peak disk usage.
+            val existing = if (replace) {
+                val overlap = cachedOnDisk.filter { it.id in pickedIds }
+                withContext(Dispatchers.IO) { cache.replaceAll(overlap) }
+                overlap
+            } else {
+                cachedOnDisk
+            }
+
             val existingIds = existing.map { it.id }.toHashSet()
             val fresh = items.filter { it.id !in existingIds }
             if (fresh.isEmpty()) {
@@ -439,16 +454,49 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 _state.value = UiState.Showing(existing)
                 return
             }
+
             val batch = System.currentTimeMillis()
-            val newItems = ArrayList<CachedItem>(fresh.size)
-            fresh.forEachIndexed { i, item ->
-                _state.value = UiState.Downloading(i, fresh.size)
-                newItems.add(withContext(Dispatchers.IO) { downloader.download(item, "${batch}_$i") })
+            val semaphore = Semaphore(3)
+            val completedCount = AtomicInteger(0)
+            _state.value = UiState.Downloading(0, fresh.size)
+
+            val results = coroutineScope {
+                fresh.mapIndexed { i, item ->
+                    async(Dispatchers.IO) {
+                        semaphore.withPermit {
+                            try {
+                                val downloaded = downloader.download(item, "${batch}_$i")
+                                val doneNow = completedCount.incrementAndGet()
+                                _state.value = UiState.Downloading(
+                                    (doneNow - 1).coerceAtLeast(0),
+                                    fresh.size
+                                )
+                                Result.success(downloaded)
+                            } catch (ce: kotlinx.coroutines.CancellationException) {
+                                throw ce
+                            } catch (t: Throwable) {
+                                Result.failure(t)
+                            }
+                        }
+                    }
+                }.awaitAll()
             }
-            val finalItems = existing + newItems
-            withContext(Dispatchers.IO) { cache.replaceAll(finalItems) }
+
+            val succeeded = results.mapNotNull { it.getOrNull() }
+            val finalItems = existing + succeeded
+            if (succeeded.isNotEmpty() || replace) {
+                withContext(Dispatchers.IO) { cache.replaceAll(finalItems) }
+            }
+
+            val firstFailure = results.firstNotNullOfOrNull { it.exceptionOrNull() }
+            if (firstFailure != null) {
+                throw firstFailure
+            }
+
             clearPending()
             _state.value = UiState.Showing(finalItems)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: RefreshTokenInvalidException) {
             // Refresh token is dead — a retry can't help. Route to sign-in instead of a
             // dead-end error so the user can re-authenticate on the device, and remember this
@@ -458,7 +506,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             clearPending()
             _state.value = needsSetupState(e.message)
         } catch (e: Exception) {
-            clearPending()
+            // Preserve pending_session.json if a transient error happened during download so
+            // tapping Retry resumes downloading the remaining items.
+            if (!downloadPhaseStarted) {
+                clearPending()
+            }
             _state.value = UiState.Error(e.message ?: "Something went wrong")
         }
     }

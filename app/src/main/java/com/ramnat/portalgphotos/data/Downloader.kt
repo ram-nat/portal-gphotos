@@ -33,7 +33,12 @@ class Downloader(
             val out = File(cacheDir, "media_$key.$ext")
             out.parentFile?.mkdirs()
             val stream = resp.body?.byteStream() ?: throw IOException("empty response body")
-            stream.use { input -> out.outputStream().use { input.copyTo(it) } }
+            try {
+                stream.use { input -> out.outputStream().use { input.copyTo(it) } }
+            } catch (t: Throwable) {
+                out.delete()
+                throw t
+            }
             return CachedItem(item.id, item.type, out, item.mimeType, item.width, item.height, item.createTime)
         }
     }
